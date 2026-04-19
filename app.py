@@ -3572,8 +3572,17 @@ def render_team_profile(data):
     # ── Compute best-role grades for each squad player ───────────────
     _player_scorecards = {}  # name -> {role, position, overall_grade, overall_pct, attr_grades: {cat: (grade, pct)}}
 
+    # --- Build league reference that matches the active stat mode ---
+    _league_raw = df[df["league_display"] == league_sel]
+    if stat_mode in ("Per 90", "Padj Per 90") and "estimated_90s" in _league_raw.columns:
+        _MIN_90S_SC = 5
+        _is_team = _league_raw["equipo"] == team_sel
+        _has_mins = _league_raw["estimated_90s"].fillna(0) >= _MIN_90S_SC
+        _league_df = _league_raw[_is_team | _has_mins].copy()
+    else:
+        _league_df = _league_raw.copy()
+
     # --- Outfield players ---
-    _league_df = df_total[df_total["league_display"] == league_sel]
     for _, p_row in _outfield_squad.iterrows():
         name = p_row.get("nombre", "Unknown")
         position = p_row.get("posicion", "Unknown")
