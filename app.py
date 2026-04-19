@@ -2785,8 +2785,8 @@ def render_profile(data):
     _scope_ctx = league if scope_mode == "League" else "All Europe"
     _basis_ctx = f"{role}s" if basis_mode == "Role" else f"{position}s"
 
-    # ── Header Card: [Photo | Name/Info | Grade] ──────────────────────
-    _hdr_photo, _hdr_info, _hdr_grade = st.columns([1, 4, 0.8])
+    # ── Header Card: [Photo | Name + Grade / Info] ─────────────────────
+    _hdr_photo, _hdr_info = st.columns([1, 5])
     with _hdr_photo:
         player_photo = _fetch_player_photo(row.get("nombre", "?"), team=row.get("equipo"))
         if player_photo:
@@ -2794,19 +2794,19 @@ def render_profile(data):
         else:
             st.markdown(f"<div style='width:140px;height:140px;border-radius:50%;background:#2d6a4f;display:flex;align-items:center;justify-content:center;font-size:48px;color:white;'>{row.get('nombre', '?')[0]}</div>", unsafe_allow_html=True)
     with _hdr_info:
-        st.markdown(f"## {row.get('nombre', '?')}")
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:18px;'>"
+            f"<span style='font-size:1.8rem;font-weight:700;'>{row.get('nombre', '?')}</span>"
+            f"<span style='cursor:help;display:inline-flex;flex-direction:column;align-items:center;' title='{_sub_lines}'>"
+            f"<span style='font-size:10px;color:#aaa;'>Overall</span>"
+            f"<span style='font-size:36px;font-weight:bold;color:{_ov_color};line-height:1;'>{_overall_grade}</span>"
+            f"<span style='font-size:9px;color:#777;'>{_overall_pct:.1f}th pctl</span>"
+            f"</span></div>",
+            unsafe_allow_html=True,
+        )
         st.markdown(f"**{league}**")
         _pos_label = f"{pos_detail} ({position})" if not _position_changed else f"{position} *(was {_orig_position})*"
         st.markdown(f"**Position:** {_pos_label} · **Role:** {role}")
-    with _hdr_grade:
-        st.markdown(
-            f"<div style='text-align:center;cursor:help;padding-top:20px;' title='{_sub_lines}'>"
-            f"<div style='font-size:11px;color:#aaa;margin-bottom:4px;'>Overall</div>"
-            f"<div style='font-size:52px;font-weight:bold;color:{_ov_color};line-height:1;'>{_overall_grade}</div>"
-            f"<div style='font-size:10px;color:#777;margin-top:4px;'>{_overall_pct:.1f}th pctl</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
     st.caption(f"Grade: {_stat_ctx} · vs {_basis_ctx} in {_scope_ctx}")
 
     # ── Market Value & Salary ────────────────────────────────────────────
