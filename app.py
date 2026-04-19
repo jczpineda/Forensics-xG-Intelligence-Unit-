@@ -3556,23 +3556,48 @@ def render_team_profile(data):
     # ── Player Scorecard & Grading ──────────────────────────────────────
     st.markdown("### 🃏 Player Scorecard & Grading")
     st.caption(
-        "Each player is graded using role-specific KPI profiles — the same system as the Player Profile. "
-        "The overall grade is based on whichever role fits the player best within their league peers. "
-        "Grades range from S+ (97th+ percentile) to F (below 45th)."
+        "Each player is graded on four categories — Attacking, Defending, Passing, and Possession — "
+        "using league-wide positional percentiles. GKs are graded on Shot-Stopping, Command, "
+        "Distribution, and Sweeping. Grades range from S+ (97th+) to F (below 45th)."
     )
 
-    # Local grade-color helper matching the 16-tier system
     def _sc_grade_color(grade):
         return _GRADE_COLORS.get(grade, "#555")
+
+    # ── Scorecard metric categories ─────────────────────────────────
+    _SC_CATEGORIES = {
+        "⚔️ Attacking": ATTRIBUTE_GRADE_CATEGORIES["Attacking"],
+        "🛡️ Defending": ATTRIBUTE_GRADE_CATEGORIES["Defending"],
+        "📊 Passing": ATTRIBUTE_GRADE_CATEGORIES["Passing"],
+        "🎯 Possession": (
+            ATTRIBUTE_GRADE_CATEGORIES.get("Dribbling & Carrying", [])
+            + ATTRIBUTE_GRADE_CATEGORIES.get("Ball Progression", [])
+            + ATTRIBUTE_GRADE_CATEGORIES.get("Passing Safety", [])
+        ),
+    }
+    # Deduplicate Possession while preserving order
+    _seen = set()
+    _SC_CATEGORIES["🎯 Possession"] = [
+        m for m in _SC_CATEGORIES["🎯 Possession"]
+        if not (m in _seen or _seen.add(m))
+    ]
+    _GK_SC_CATEGORIES = {
+        "🧤 Shot-Stopping": GK_ATTRIBUTE_GRADE_CATEGORIES["Shot-Stopping"],
+        "📢 Command": GK_ATTRIBUTE_GRADE_CATEGORIES["Command"],
+        "📊 Distribution": GK_ATTRIBUTE_GRADE_CATEGORIES["Distribution"],
+        "🧹 Sweeping": GK_ATTRIBUTE_GRADE_CATEGORIES["Sweeping"],
+    }
+
+    _LOWER_SC = {
+        "Unsuccessful Dribbles", "Overruns",
+        "Total Losses Of Possession",
+    }
 
     # ── Separate outfield vs GK ─────────────────────────────────────
     _outfield_squad = squad[squad["posicion"] != "Goalkeeper"].copy()
     _gk_squad = squad[squad["posicion"] == "Goalkeeper"].copy()
 
-    # ── Compute best-role grades for each squad player ───────────────
-    _player_scorecards = {}  # name -> {role, position, overall_grade, overall_pct, attr_grades: {cat: (grade, pct)}}
-
-    # --- Build league reference that matches the active stat mode ---
+    # --- Build league reference matching the active stat mode ---
     _league_raw = df[df["league_display"] == league_sel]
     if stat_mode in ("Per 90", "Padj Per 90") and "estimated_90s" in _league_raw.columns:
         _MIN_90S_SC = 5
@@ -3582,199 +3607,133 @@ def render_team_profile(data):
     else:
         _league_df = _league_raw.copy()
 
-    # --- Outfield players ---
-    for _, p_row in _outfield_squad.iterrows():
-        name = p_row.get("nombre", "Unknown")
-        position = p_row.get("posicion", "Unknown")
-        if name == "Unknown" or position == "Unknown":
+    _outfield_peers = _league_df[_league_df["posicion"] != "Goalkeeper"].copy()
+    _gk_peers = _league_df[_league_df["posicion"] == "Goalkeeper"].copy()
+
+    # ── Compute outfield percentiles ─────────────────────────────────
+    _outfield_cards = {}  # name -> {cat_name: {metrics, pctiles, composite, grade}}
+    for cat_name, cat_metrics in _SC_CATEGORIES.items():
+        avail = [m for m in cat_metrics if m in _outfield_peers.columns]
+        if not avail:
             continue
+        pctile_df = _outfield_peers[avail].rank(pct=True) * 100
+        for m in avail:
+            if m in _LOWER_SC or m in _INVERTED_GRADE_CATS:
+                pctile_df[m] = 100 - pctile_df[m]
+        pctile_df["nombre"] = _outfield_peers["nombre"].values
+        pctile_df["equipo"] = _outfield_peers["equipo"].values
+        team_pct = pctile_df[pctile_df["equipo"] == team_sel]
+        for _, row in team_pct.iterrows():
+            name = row["nombre"]
+            comp = round(pd.to_numeric(row[avail], errors="coerce").mean(), 1)
+            _outfield_cards.setdefault(name, {})[cat_name] = {
+                "metrics": avail,
+                "pctiles": {m: round(row[m], 1) for m in avail},
+                "composite": comp,
+                "grade": _percentile_to_grade(comp),
+            }
 
-        # Try all roles for this position, pick the one with the highest overall pct
-        _available_roles = list(POSITION_ROLE_PROFILES.get(position, {}).keys())
-        if not _available_roles:
-            _available_roles = [_classify_role(p_row, position, _league_df)]
-
-        best_role = None
-        best_pct = -1
-        best_attr = {}
-        for _try_role in _available_roles:
-            _kpi = _ROLE_KPI_PROFILES.get(_try_role)
-            attr = _compute_attribute_grades(
-                dict(p_row), position, _league_df,
-                league=league_sel, role=None,
-                df_role_ref=_league_df, kpi_role=_try_role,
-            )
-            if _kpi:
-                weights = {n: w for n, (w, _) in _kpi.items()}
-            else:
-                weights = _POSITION_GRADE_WEIGHTS.get(position, {})
-            pcts = {k: pct for k, (_, pct) in attr.items() if pct is not None}
-            if not pcts:
-                continue
-            if weights:
-                w_sum = sum(weights.get(k, 0) for k in pcts)
-                if w_sum > 0:
-                    ov_pct = sum(pcts[k] * weights.get(k, 0) for k in pcts) / w_sum
-                else:
-                    ov_pct = sum(pcts.values()) / len(pcts)
-            else:
-                ov_pct = sum(pcts.values()) / len(pcts)
-            if ov_pct > best_pct:
-                best_pct = ov_pct
-                best_role = _try_role
-                best_attr = attr
-
-        if best_role is None:
+    # ── Compute GK percentiles ───────────────────────────────────────
+    _gk_cards = {}
+    for cat_name, cat_metrics in _GK_SC_CATEGORIES.items():
+        avail = [m for m in cat_metrics if m in _gk_peers.columns]
+        if not avail or _gk_peers.empty:
             continue
+        pctile_df = _gk_peers[avail].rank(pct=True) * 100
+        pctile_df["nombre"] = _gk_peers["nombre"].values
+        pctile_df["equipo"] = _gk_peers["equipo"].values
+        team_pct = pctile_df[pctile_df["equipo"] == team_sel]
+        for _, row in team_pct.iterrows():
+            name = row["nombre"]
+            comp = round(pd.to_numeric(row[avail], errors="coerce").mean(), 1)
+            _gk_cards.setdefault(name, {})[cat_name] = {
+                "metrics": avail,
+                "pctiles": {m: round(row[m], 1) for m in avail},
+                "composite": comp,
+                "grade": _percentile_to_grade(comp),
+            }
 
-        _player_scorecards[name] = {
-            "role": best_role,
-            "position": position,
-            "overall_grade": _percentile_to_grade(best_pct),
-            "overall_pct": round(best_pct, 1),
-            "attr_grades": best_attr,
-            "is_gk": False,
-        }
-
-    # --- Goalkeepers ---
-    for _, p_row in _gk_squad.iterrows():
-        name = p_row.get("nombre", "Unknown")
-        if name == "Unknown":
-            continue
-        attr = _compute_attribute_grades(
-            dict(p_row), "Goalkeeper", _league_df,
-            league=league_sel, role=None,
-            df_role_ref=_league_df, kpi_role="Goalkeeper",
-        )
-        pcts = {k: pct for k, (_, pct) in attr.items() if pct is not None}
-        ov_pct = sum(pcts.values()) / len(pcts) if pcts else 0
-        _player_scorecards[name] = {
-            "role": "Goalkeeper",
-            "position": "Goalkeeper",
-            "overall_grade": _percentile_to_grade(ov_pct),
-            "overall_pct": round(ov_pct, 1),
-            "attr_grades": attr,
-            "is_gk": True,
-        }
-
-    # ── Build dropdown sorted by overall ────────────────────────────
+    # ── Build dropdown ──────────────────────────────────────────────
     is_gk = False
-    if not _player_scorecards:
+    _dropdown_options = []  # (label, name, is_gk)
+    for name, cats in sorted(_outfield_cards.items(),
+                              key=lambda x: sum(c["composite"] for c in x[1].values()) / max(len(x[1]), 1),
+                              reverse=True):
+        cat_summary = " | ".join(f"{cn.split(' ', 1)[-1]}: {cd['grade']}" for cn, cd in cats.items())
+        _dropdown_options.append((f"{name}  —  {cat_summary}", name, False))
+    for name, cats in sorted(_gk_cards.items(),
+                              key=lambda x: sum(c["composite"] for c in x[1].values()) / max(len(x[1]), 1),
+                              reverse=True):
+        cat_summary = " | ".join(f"{cn.split(' ', 1)[-1]}: {cd['grade']}" for cn, cd in cats.items())
+        _dropdown_options.append((f"🧤 {name}  —  {cat_summary}", name, True))
+
+    if not _dropdown_options:
         st.info(f"No graded players found for {team_sel}.")
     else:
-        _sorted_cards = sorted(_player_scorecards.items(),
-                               key=lambda x: x[1]["overall_pct"], reverse=True)
-        _dropdown_options = []
-        for name, sc in _sorted_cards:
-            prefix = "🧤 " if sc["is_gk"] else ""
-            cat_summary = " | ".join(
-                f"{cn}: {cg}" for cn, (cg, cp) in sc["attr_grades"].items() if cp is not None
-            )
-            label = (f"{prefix}{name}  —  Overall: {sc['overall_grade']} "
-                     f"({sc['overall_pct']:.0f}th)  ·  {sc['role']}  |  {cat_summary}")
-            _dropdown_options.append((label, name))
-
         _labels = [opt[0] for opt in _dropdown_options]
         _sel_label = st.selectbox("Select a player", _labels, key="sc_player_sel")
         _sel_idx = _labels.index(_sel_label)
-        _, player_name = _dropdown_options[_sel_idx]
-        sc = _player_scorecards[player_name]
-        is_gk = sc["is_gk"]
-        attr_grades = sc["attr_grades"]
+        _, player_name, is_gk = _dropdown_options[_sel_idx]
 
-        # ── Header ──
-        st.markdown(
-            f"#### {'🧤 ' if is_gk else ''}{player_name}  —  Overall: "
-            f"**{sc['overall_grade']}** ({sc['overall_pct']:.0f}th pctile)  ·  Role: **{sc['role']}**"
-        )
+        cats = _gk_cards.get(player_name, {}) if is_gk else _outfield_cards.get(player_name, {})
+        raw_squad = _gk_squad if is_gk else _outfield_squad
 
-        # ── Attribute tabs ──
-        _valid_attrs = {k: v for k, v in attr_grades.items() if v[1] is not None}
-        if _valid_attrs:
-            cat_tabs = st.tabs(list(_valid_attrs.keys()))
-            _kpi = _ROLE_KPI_PROFILES.get(sc["role"])
-            for tab, (cat_name, (cat_grade, cat_pct)) in zip(cat_tabs, _valid_attrs.items()):
-                with tab:
-                    st.markdown(f"**{cat_name}**: {cat_grade} ({cat_pct:.0f}th pctile)")
-                    # Get individual metric percentiles for this category
-                    if _kpi and cat_name in _kpi:
-                        _, cat_metrics = _kpi[cat_name]
-                    elif is_gk and cat_name in GK_ATTRIBUTE_GRADE_CATEGORIES:
-                        cat_metrics = GK_ATTRIBUTE_GRADE_CATEGORIES[cat_name]
-                    elif cat_name in ATTRIBUTE_GRADE_CATEGORIES:
-                        cat_metrics = ATTRIBUTE_GRADE_CATEGORIES[cat_name]
-                    else:
-                        cat_metrics = []
+        # Header: just the 4 category grades
+        prefix = "🧤 " if is_gk else ""
+        cat_header = "  |  ".join(f"{cn.split(' ', 1)[-1]}: **{cd['grade']}**" for cn, cd in cats.items())
+        st.markdown(f"#### {prefix}{player_name}  —  {cat_header}")
 
-                    _avail = [m for m in cat_metrics if m in _league_df.columns]
-                    if not _avail:
-                        continue
+        # Tabs for each category
+        cat_tabs = st.tabs(list(cats.keys()))
+        for tab, (cat_name, cat_data) in zip(cat_tabs, cats.items()):
+            with tab:
+                raw_row = raw_squad[raw_squad["nombre"] == player_name]
+                detail_rows = []
+                for m in cat_data["metrics"]:
+                    raw_val = (round(raw_row[m].values[0], 2)
+                               if len(raw_row) and m in raw_row.columns and pd.notna(raw_row[m].values[0])
+                               else "-")
+                    pct = cat_data["pctiles"][m]
+                    g = _percentile_to_grade(pct)
+                    detail_rows.append({
+                        "Metric": m,
+                        f"Value{mode_label}": raw_val,
+                        "Pctile": f"{pct:.0f}",
+                        "Grade": g,
+                    })
 
-                    # Compute individual metric percentiles vs league+position peers
-                    _peers = _league_df[_league_df["posicion"] == sc["position"]]
-                    if len(_peers) < 5:
-                        _PEER_FALLBACK = {"Wingers": "Striker"}
-                        fb_pos = _PEER_FALLBACK.get(sc["position"])
-                        if fb_pos:
-                            _peers = _league_df[_league_df["posicion"] == fb_pos]
-
-                    _inv = _KPI_INVERTED_CATS if _kpi else _INVERTED_GRADE_CATS
-                    p_row_data = squad[squad["nombre"] == player_name].iloc[0] if not squad[squad["nombre"] == player_name].empty else None
-                    if p_row_data is None or len(_peers) < 5:
-                        continue
-
-                    detail_rows = []
-                    metric_pcts = []
-                    for m in _avail:
-                        val = p_row_data.get(m, 0)
-                        val = 0 if pd.isna(val) else val
-                        peer_vals = _peers[m].fillna(0)
-                        pct = (peer_vals < val).sum() / max(len(peer_vals), 1) * 100
-                        if m in _inv:
-                            pct = 100 - pct
-                        g = _percentile_to_grade(pct)
-                        raw_val = round(float(val), 2) if pd.notna(val) else "-"
-                        detail_rows.append({
-                            "Metric": m,
-                            f"Value{mode_label}": raw_val,
-                            "Pctile": f"{pct:.0f}",
-                            "Grade": g,
-                        })
-                        metric_pcts.append((m, pct, g))
-
-                    if not detail_rows:
-                        continue
-
-                    fig_sc = go.Figure(go.Bar(
-                        x=[r["Metric"] for r in detail_rows],
-                        y=[p for _, p, _ in metric_pcts],
-                        marker_color=[_sc_grade_color(g) for _, _, g in metric_pcts],
-                        text=[g for _, _, g in metric_pcts],
-                        textposition="outside",
-                        customdata=list(zip(
-                            [r[f"Value{mode_label}"] for r in detail_rows],
-                            [f"{p:.0f}" for _, p, _ in metric_pcts],
-                            [g for _, _, g in metric_pcts],
-                        )),
-                        hovertemplate=(
-                            "<b>%{x}</b><br>"
-                            "Value: %{customdata[0]}<br>"
-                            "Percentile: %{customdata[1]}<br>"
-                            "Grade: %{customdata[2]}"
-                            "<extra></extra>"
-                        ),
-                    ))
-                    fig_sc.add_hline(y=50, line_dash="dash", line_color="grey",
-                                     annotation_text="League Median", annotation_position="top left")
-                    fig_sc.update_layout(
-                        title=f"{player_name} — {cat_name}",
-                        yaxis_title="Percentile", yaxis_range=[0, 105],
-                        template="plotly_white", height=380,
-                        xaxis_tickangle=-45, margin=dict(b=100),
-                    )
-                    st.plotly_chart(fig_sc, use_container_width=True,
-                                    key=f"sc_{player_name}_{cat_name}")
-                    st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
+                _sc_pcts = [cat_data["pctiles"][r["Metric"]] for r in detail_rows]
+                _sc_grades = [_percentile_to_grade(p) for p in _sc_pcts]
+                fig_sc = go.Figure(go.Bar(
+                    x=[r["Metric"] for r in detail_rows],
+                    y=_sc_pcts,
+                    marker_color=[_sc_grade_color(g) for g in _sc_grades],
+                    text=_sc_grades,
+                    textposition="outside",
+                    customdata=list(zip(
+                        [r[f"Value{mode_label}"] for r in detail_rows],
+                        [f"{p:.0f}" for p in _sc_pcts],
+                        _sc_grades,
+                    )),
+                    hovertemplate=(
+                        "<b>%{x}</b><br>"
+                        "Value: %{customdata[0]}<br>"
+                        "Percentile: %{customdata[1]}<br>"
+                        "Grade: %{customdata[2]}"
+                        "<extra></extra>"
+                    ),
+                ))
+                fig_sc.add_hline(y=50, line_dash="dash", line_color="grey",
+                                 annotation_text="League Median", annotation_position="top left")
+                fig_sc.update_layout(
+                    title=f"{player_name} — {cat_name}",
+                    yaxis_title="Percentile", yaxis_range=[0, 105],
+                    template="plotly_white", height=380,
+                    xaxis_tickangle=-45, margin=dict(b=100),
+                )
+                st.plotly_chart(fig_sc, use_container_width=True,
+                                key=f"sc_{player_name}_{cat_name}")
+                st.dataframe(pd.DataFrame(detail_rows), use_container_width=True, hide_index=True)
 
     # ── GK Value Behind Defence Quality ──────────────────────────────────
     if is_gk:
