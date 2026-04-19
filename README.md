@@ -1,0 +1,57 @@
+# ⚽ Football Analytics AI
+
+Interactive football analytics tool for Europe's top 6 leagues (2025-2026 season).
+
+## Features
+
+- **AI Chat** — Ask natural language questions and get charts (requires OpenAI API key)
+- **Smart Parser** — Works without an API key using keyword matching
+- **Pre-built Analyses** — 9 ready-made analysis types (top scorers, radar comparisons, etc.)
+- **Data Explorer** — Browse, filter, search, and download raw player data
+- **Per-90 Stats** — Automatic per-90-minute calculations for key metrics
+
+## Leagues Covered
+
+| League | Country |
+|--------|---------|
+| Premier League | England |
+| LaLiga | Spain |
+| Bundesliga | Germany |
+| Ligue 1 | France |
+| Serie A | Italy |
+| Primeira Liga | Portugal |
+
+## Setup
+
+### 1. Install Python dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run the app
+
+```bash
+streamlit run app.py
+```
+
+The app will open in your browser at `http://localhost:8501`.
+
+### 3. (Optional) Enable AI Chat
+
+Enter your OpenAI API key in the sidebar to unlock AI-powered natural language queries.
+Without an API key, the smart parser and all pre-built analyses still work.
+
+## Example Questions (AI Chat)
+
+- "Who are the top 10 scorers in the Premier League?"
+- "Compare Salah and Haaland across goals, assists, and shots"
+- "Best passers in LaLiga"
+- "Which team has the most goals in Serie A?"
+- "Top 15 defenders by tackles in the Bundesliga"
+- "Shot conversion rate leaders in Ligue 1"
+
+## Data Structure
+
+The app reads `jugadores_seasonstats.csv` files from each league folder in the parent directory.
+Each file contains 130+ statistical columns per player per season.
