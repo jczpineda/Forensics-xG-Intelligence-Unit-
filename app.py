@@ -3306,13 +3306,49 @@ def render_team_profile(data):
     }
 
     # ── Build position → player names mapping ────────────────────────
+    # Map posicion_detail broad names to pitch position codes
+    _DETAIL_TO_CODE = {
+        "Goalkeeper": "GK", "GK": "GK",
+        "Defender": "CB", "CB": "CB", "Centre-Back": "CB",
+        "FB": "LB",  # Full-backs: first pass → LB, overflow → RB
+        "Full-Back": "LB",
+        "LB": "LB", "RB": "RB", "LWB": "LWB", "RWB": "RWB",
+        "Midfielder": "CM", "CM": "CM", "Central Midfield": "CM",
+        "DM": "DM", "LM": "LM", "RM": "RM",
+        "CAM": "CAM", "Attacking Midfield": "CAM",
+        "LAM": "LAM", "RAM": "RAM",
+        "Forward": "ST", "ST": "ST", "CF": "CF", "Striker": "ST",
+        "LW": "LW", "RW": "RW", "Wingers": "LW",
+    }
     _pos_players = {}  # pos -> [name, ...]
-    for _, row in squad.iterrows():
-        pos = row.get("posicion_detail", "Unknown")
-        name = row.get("nombre", "Unknown")
-        if pos == "Unknown" or name == "Unknown":
+    _fb_names = []  # collect FB players to split LB/RB later
+    _wing_names = []  # collect generic Wingers to split LW/RW
+    for _, r in squad.iterrows():
+        pos_raw = r.get("posicion_detail", "Unknown")
+        name = r.get("nombre", "Unknown")
+        if pos_raw == "Unknown" or name == "Unknown":
             continue
-        _pos_players.setdefault(pos, []).append(name)
+        code = _DETAIL_TO_CODE.get(pos_raw)
+        if code is None:
+            continue
+        if pos_raw in ("FB", "Full-Back"):
+            _fb_names.append(name)
+        elif pos_raw in ("Wingers",):
+            _wing_names.append(name)
+        else:
+            _pos_players.setdefault(code, []).append(name)
+
+    # Split generic full-backs into LB / RB
+    if _fb_names:
+        half = len(_fb_names) // 2
+        _pos_players.setdefault("LB", []).extend(_fb_names[:max(1, half)])
+        _pos_players.setdefault("RB", []).extend(_fb_names[max(1, half):])
+
+    # Split generic wingers into LW / RW
+    if _wing_names:
+        half = len(_wing_names) // 2
+        _pos_players.setdefault("LW", []).extend(_wing_names[:max(1, half)])
+        _pos_players.setdefault("RW", []).extend(_wing_names[max(1, half):])
 
     # If both CF and ST exist, keep them separate (left/right split)
     _has_cf = "CF" in _pos_players
