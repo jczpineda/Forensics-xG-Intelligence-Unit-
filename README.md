@@ -1,4 +1,4 @@
-# ⚽ Football Analytics
+# ⚽ Forensics xG: The Intelligence Unit
 
 Interactive football analytics tool for Europe's top 6 leagues (2025-2026 season).
 
