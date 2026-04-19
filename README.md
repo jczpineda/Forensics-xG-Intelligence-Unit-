@@ -1,11 +1,9 @@
-# ⚽ Football Analytics AI
+# ⚽ Football Analytics
 
 Interactive football analytics tool for Europe's top 6 leagues (2025-2026 season).
 
 ## Features
 
-- **AI Chat** — Ask natural language questions and get charts (requires OpenAI API key)
-- **Smart Parser** — Works without an API key using keyword matching
 - **Pre-built Analyses** — 9 ready-made analysis types (top scorers, radar comparisons, etc.)
 - **Data Explorer** — Browse, filter, search, and download raw player data
 - **Per-90 Stats** — Automatic per-90-minute calculations for key metrics
