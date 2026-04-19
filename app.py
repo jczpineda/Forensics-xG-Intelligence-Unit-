@@ -2665,7 +2665,29 @@ def render_player_lab(data):
                         "League Grade", "League %ile"] + _attr_display + [
                         "Market Value", "Salary"]
     show = filtered[[c for c in display_cols if c in filtered.columns]].reset_index(drop=True)
-    st.dataframe(show, use_container_width=True, height=600)
+    event = st.dataframe(show, use_container_width=True, height=600,
+                         on_select="rerun", selection_mode="single-row",
+                         key="lab_table")
+
+    # ── Quick-nav buttons when a row is selected ─────────────────────────
+    if event and event.selection and event.selection.rows:
+        _sel_idx = event.selection.rows[0]
+        _sel_row = show.iloc[_sel_idx]
+        _sel_player = _sel_row.get("Player", "")
+        _sel_team = _sel_row.get("Team", "")
+        _sel_league = _sel_row.get("League", "")
+
+        _nav1, _nav2 = st.columns(2)
+        with _nav1:
+            if _sel_player and st.button(f"🪪  View {_sel_player}'s Profile", use_container_width=True):
+                st.session_state["prof_lg"] = _sel_league
+                st.session_state["prof_pl"] = _sel_player
+                st.toast(f"**{_sel_player}** pre-selected — switch to the **🪪 Player Profile** tab.", icon="🪪")
+        with _nav2:
+            if _sel_team and st.button(f"🏟️  View {_sel_team}'s Profile", use_container_width=True):
+                st.session_state["tp_lg"] = _sel_league
+                st.session_state["tp_team"] = _sel_team
+                st.toast(f"**{_sel_team}** pre-selected — switch to the **🏟️ Team Profile** tab.", icon="🏟️")
 
 
 # ── UI: Player Profile ──────────────────────────────────────────────────────
