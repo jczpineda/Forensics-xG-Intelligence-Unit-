@@ -2795,16 +2795,18 @@ def render_profile(data):
             st.markdown(f"<div style='width:140px;height:140px;border-radius:50%;background:#2d6a4f;display:flex;align-items:center;justify-content:center;font-size:48px;color:white;'>{row.get('nombre', '?')[0]}</div>", unsafe_allow_html=True)
     with _hdr_info:
         st.markdown(
-            f"<div style='display:flex;align-items:center;gap:18px;'>"
-            f"<span style='font-size:1.8rem;font-weight:700;'>{row.get('nombre', '?')}</span>"
+            f"<div style='display:flex;align-items:flex-start;gap:24px;'>"
+            f"<div>"
+            f"<div style='font-size:1.8rem;font-weight:700;'>{row.get('nombre', '?')}</div>"
+            f"<div style='margin-top:2px;'><strong>{league}</strong></div>"
+            f"</div>"
             f"<span style='cursor:help;display:inline-flex;flex-direction:column;align-items:center;' title='{_sub_lines}'>"
-            f"<span style='font-size:12px;color:#aaa;'>Overall</span>"
-            f"<span style='font-size:52px;font-weight:bold;color:{_ov_color};line-height:1;'>{_overall_grade}</span>"
+            f"<span style='font-size:12px;color:#aaa;'>Overall Grade</span>"
+            f"<span style='font-size:72px;font-weight:bold;color:{_ov_color};line-height:1;'>{_overall_grade}</span>"
             f"<span style='font-size:11px;color:#777;'>{_overall_pct:.1f}th pctl</span>"
             f"</span></div>",
             unsafe_allow_html=True,
         )
-        st.markdown(f"**{league}**")
         _pos_label = f"{pos_detail} ({position})" if not _position_changed else f"{position} *(was {_orig_position})*"
         st.markdown(f"**Position:** {_pos_label} · **Role:** {role}")
     st.caption(f"Grade: {_stat_ctx} · vs {_basis_ctx} in {_scope_ctx}")
