@@ -2654,10 +2654,16 @@ def render_player_lab(data):
     _attr_display = [c for c in filtered.columns
                      if c.endswith(" Grade") and c not in ("Overall Grade", "League Grade")
                      and not c.endswith(" Grade (Europe)")]
-    display_cols = ["Player", "Team", "League", "Pos", "Role",
-                    "Overall Grade", "Overall %ile",
-                    "League Grade", "League %ile"] + _attr_display + [
-                    "Market Value", "Salary"]
+    # When a specific league is selected, hide the Overall columns
+    if sel_leagues:
+        display_cols = ["Player", "Team", "League", "Pos", "Role",
+                        "League Grade", "League %ile"] + _attr_display + [
+                        "Market Value", "Salary"]
+    else:
+        display_cols = ["Player", "Team", "League", "Pos", "Role",
+                        "Overall Grade", "Overall %ile",
+                        "League Grade", "League %ile"] + _attr_display + [
+                        "Market Value", "Salary"]
     show = filtered[[c for c in display_cols if c in filtered.columns]].reset_index(drop=True)
     st.dataframe(show, use_container_width=True, height=600)
 
