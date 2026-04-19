@@ -36,20 +36,7 @@ streamlit run app.py
 ```
 
 The app will open in your browser at `http://localhost:8501`.
-
-### 3. (Optional) Enable AI Chat
-
-Enter your OpenAI API key in the sidebar to unlock AI-powered natural language queries.
-Without an API key, the smart parser and all pre-built analyses still work.
-
-## Example Questions (AI Chat)
-
-- "Who are the top 10 scorers in the Premier League?"
-- "Compare Salah and Haaland across goals, assists, and shots"
-- "Best passers in LaLiga"
-- "Which team has the most goals in Serie A?"
-- "Top 15 defenders by tackles in the Bundesliga"
-- "Shot conversion rate leaders in Ligue 1"
+Official Link: 'https://forensics-xg-intelligence-unit.streamlit.app/'
 
 ## Data Structure
 
