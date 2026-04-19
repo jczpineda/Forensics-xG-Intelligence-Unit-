@@ -3283,21 +3283,21 @@ def render_team_profile(data):
 
     # ── Position coordinates on pitch (0-100 scale, bottom=own goal) ──
     _POS_XY = {
-        "GK":  (50, 5),
+        "GK":  (50, 8),
         "LB":  (15, 25), "CB": (50, 22), "RB": (85, 25),
         "LWB": (10, 35), "RWB": (90, 35),
         "DM":  (50, 40),
         "LM":  (12, 55), "CM": (50, 55), "RM": (88, 55),
         "LAM": (20, 68), "CAM": (50, 68), "RAM": (80, 68),
-        "LW":  (15, 82), "CF": (50, 88), "ST": (50, 88), "RW": (85, 82),
+        "LW":  (15, 78), "ST": (50, 85), "RW": (85, 78),
     }
     _EXTRA_XY = {"LCB": (35, 22), "RCB": (65, 22)}
 
     # Multi-position flexibility: a player listed as key can also cover values
     _POS_FLEX = {
-        "ST": ["CF", "LW", "RW"], "CF": ["ST", "LW", "RW"],
-        "LW": ["LM", "LAM", "ST", "CF", "LB", "LWB"],
-        "RW": ["RM", "RAM", "ST", "CF", "RB", "RWB"],
+        "ST": ["LW", "RW"],
+        "LW": ["LM", "LAM", "ST", "LB", "LWB"],
+        "RW": ["RM", "RAM", "ST", "RB", "RWB"],
         "LM": ["LW", "LAM"], "RM": ["RW", "RAM"],
         "LAM": ["LW", "LM"], "RAM": ["RW", "RM"],
         "LWB": ["LB", "LW"], "RWB": ["RB", "RW"],
@@ -3317,12 +3317,13 @@ def render_team_profile(data):
         "DM": "DM", "LM": "LM", "RM": "RM",
         "CAM": "CAM", "Attacking Midfield": "CAM",
         "LAM": "LAM", "RAM": "RAM",
-        "Forward": "ST", "ST": "ST", "CF": "CF", "Striker": "ST",
+        "Forward": "ST", "ST": "ST", "CF": "ST", "Striker": "ST",
         "LW": "LW", "RW": "RW", "Wingers": "LW",
     }
     _pos_players = {}  # pos -> [name, ...]
     _fb_names = []  # collect FB players to split LB/RB later
     _wing_names = []  # collect generic Wingers to split LW/RW
+    _fwd_rows = []  # collect generic Forward rows to sub-classify ST vs LW/RW
     for _, r in squad.iterrows():
         pos_raw = r.get("posicion_detail", "Unknown")
         name = r.get("nombre", "Unknown")
@@ -3335,8 +3336,38 @@ def render_team_profile(data):
             _fb_names.append(name)
         elif pos_raw in ("Wingers",):
             _wing_names.append(name)
+        elif pos_raw in ("Forward", "Striker"):
+            _fwd_rows.append(r)
         else:
             _pos_players.setdefault(code, []).append(name)
+
+    # Sub-classify Forwards into ST vs LW/RW using wide-play stats
+    _FWD_WIDE = ["Successful Crosses open play", "Successful Dribbles",
+                 "Total Touches In Opposition Box"]
+    _FWD_CENTRAL = ["Goals", "Total Shots", "Aerial Duels won", "Headed Goals"]
+    _fw_avail = [m for m in _FWD_WIDE if m in squad.columns]
+    _fc_avail = [m for m in _FWD_CENTRAL if m in squad.columns]
+    if len(_fwd_rows) > 2 and _fw_avail and _fc_avail:
+        _fwd_df = pd.DataFrame(_fwd_rows)
+        _fw_pct = _fwd_df[_fw_avail].apply(pd.to_numeric, errors="coerce").rank(pct=True).mean(axis=1)
+        _fc_pct = _fwd_df[_fc_avail].apply(pd.to_numeric, errors="coerce").rank(pct=True).mean(axis=1)
+        _balance = _fw_pct - _fc_pct
+        _wide_fwds = []
+        _central_fwds = []
+        for i, r in enumerate(_fwd_rows):
+            if _balance.iloc[i] > 0.1:
+                _wide_fwds.append(r.get("nombre", "Unknown"))
+            else:
+                _central_fwds.append(r.get("nombre", "Unknown"))
+        # Split wide forwards into LW / RW
+        if _wide_fwds:
+            half = len(_wide_fwds) // 2
+            _pos_players.setdefault("LW", []).extend(_wide_fwds[:max(1, half)])
+            _pos_players.setdefault("RW", []).extend(_wide_fwds[max(1, half):])
+        _pos_players.setdefault("ST", []).extend(_central_fwds)
+    else:
+        for r in _fwd_rows:
+            _pos_players.setdefault("ST", []).append(r.get("nombre", "Unknown"))
 
     # Split generic full-backs into LB / RB
     if _fb_names:
@@ -3349,13 +3380,6 @@ def render_team_profile(data):
         half = len(_wing_names) // 2
         _pos_players.setdefault("LW", []).extend(_wing_names[:max(1, half)])
         _pos_players.setdefault("RW", []).extend(_wing_names[max(1, half):])
-
-    # If both CF and ST exist, keep them separate (left/right split)
-    _has_cf = "CF" in _pos_players
-    _has_st = "ST" in _pos_players
-    if _has_cf and _has_st:
-        _POS_XY["CF"] = (38, 88)
-        _POS_XY["ST"] = (62, 88)
 
     # Handle CB splitting: if multiple CBs, split into LCB / RCB
     _display_players = {}
@@ -3390,17 +3414,17 @@ def render_team_profile(data):
         dict(type="rect", x0=0, y0=0, x1=100, y1=100,
              line=dict(color="white", width=2), fillcolor="#1a472a"),
         dict(type="line", x0=0, y0=50, x1=100, y1=50,
-             line=dict(color="white", width=1.5)),
+             line=dict(color="white", width=1)),
         dict(type="circle", x0=38, y0=38, x1=62, y1=62,
-             line=dict(color="white", width=1.5), fillcolor="rgba(0,0,0,0)"),
+             line=dict(color="white", width=1), fillcolor="rgba(0,0,0,0)"),
         dict(type="rect", x0=20, y0=0, x1=80, y1=16,
-             line=dict(color="white", width=1.5), fillcolor="rgba(0,0,0,0)"),
+             line=dict(color="rgba(255,255,255,0.4)", width=1), fillcolor="rgba(0,0,0,0)"),
         dict(type="rect", x0=32, y0=0, x1=68, y1=6,
-             line=dict(color="white", width=1.5), fillcolor="rgba(0,0,0,0)"),
+             line=dict(color="rgba(255,255,255,0.4)", width=1), fillcolor="rgba(0,0,0,0)"),
         dict(type="rect", x0=20, y0=84, x1=80, y1=100,
-             line=dict(color="white", width=1.5), fillcolor="rgba(0,0,0,0)"),
+             line=dict(color="rgba(255,255,255,0.4)", width=1), fillcolor="rgba(0,0,0,0)"),
         dict(type="rect", x0=32, y0=94, x1=68, y1=100,
-             line=dict(color="white", width=1.5), fillcolor="rgba(0,0,0,0)"),
+             line=dict(color="rgba(255,255,255,0.4)", width=1), fillcolor="rgba(0,0,0,0)"),
     ]
 
     # ── Plot position markers with player name lists ────────────────
@@ -3420,13 +3444,13 @@ def render_team_profile(data):
             hoverinfo="text", showlegend=False,
         ))
         fig_pitch.add_annotation(
-            x=pos_x, y=pos_y + 1, text=f"<b>{pos}</b>",
+            x=pos_x, y=pos_y + 1.5, text=f"<b>{pos}</b>",
             showarrow=False, font=dict(size=11, color="white"), opacity=0.95,
         )
         # Player names below the marker
         fig_pitch.add_annotation(
-            x=pos_x, y=pos_y - 5, text="<br>".join(names[:4]),
-            showarrow=False, font=dict(size=8, color="white"), opacity=0.8,
+            x=pos_x, y=pos_y - 6, text="<br>".join(names[:4]),
+            showarrow=False, font=dict(size=8, color="white"), opacity=0.85,
             align="center",
         )
 
@@ -3444,11 +3468,11 @@ def render_team_profile(data):
             hoverinfo="text", showlegend=False,
         ))
         fig_pitch.add_annotation(
-            x=pos_x, y=pos_y + 1, text=f"<b>{pos}</b>",
+            x=pos_x, y=pos_y + 1.5, text=f"<b>{pos}</b>",
             showarrow=False, font=dict(size=10, color="rgba(255,255,255,0.55)"),
         )
         fig_pitch.add_annotation(
-            x=pos_x, y=pos_y - 5,
+            x=pos_x, y=pos_y - 6,
             text="<br>".join(f"({n})" for n in names[:3]),
             showarrow=False, font=dict(size=7, color="rgba(255,255,255,0.5)"),
             align="center",
@@ -3457,7 +3481,7 @@ def render_team_profile(data):
     fig_pitch.update_layout(
         shapes=_pitch_shapes,
         xaxis=dict(range=[-5, 105], visible=False, fixedrange=True),
-        yaxis=dict(range=[-8, 108], visible=False, fixedrange=True,
+        yaxis=dict(range=[-12, 112], visible=False, fixedrange=True,
                    scaleanchor="x", scaleratio=1),
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
         height=700, width=550,
