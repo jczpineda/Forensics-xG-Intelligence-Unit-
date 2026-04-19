@@ -48,7 +48,7 @@ SQUAD_ROSTER_OVERRIDES = {}
 CHART_COLORS = px.colors.qualitative.Vivid
 
 # ── Player Financials CSV ────────────────────────────────────────────────────
-_FINANCIALS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "player_financials.csv")
+_FINANCIALS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Player Financials", "player_financials.csv")
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
