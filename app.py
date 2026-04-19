@@ -2786,7 +2786,7 @@ def render_profile(data):
     _basis_ctx = f"{role}s" if basis_mode == "Role" else f"{position}s"
 
     # ── Header Card: [Photo | Name + Grade / Info] ─────────────────────
-    _hdr_photo, _hdr_info = st.columns([1, 5])
+    _hdr_photo, _hdr_info, _hdr_spacer = st.columns([1, 3, 2])
     with _hdr_photo:
         player_photo = _fetch_player_photo(row.get("nombre", "?"), team=row.get("equipo"))
         if player_photo:
