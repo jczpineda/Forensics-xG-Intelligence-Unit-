@@ -3603,7 +3603,7 @@ def render_team_profile(data):
         team_pct = pctile_df[pctile_df["equipo"] == team_sel]
         for _, row in team_pct.iterrows():
             name = row["nombre"]
-            comp = round(row[avail].mean(), 1)
+            comp = round(pd.to_numeric(row[avail], errors="coerce").mean(), 1)
             _outfield_grades.setdefault(name, {})[cat_name] = {
                 "metrics": avail,
                 "pctiles": {m: round(row[m], 1) for m in avail},
@@ -3631,7 +3631,7 @@ def render_team_profile(data):
         team_gk_pct = gk_pctile_df[gk_pctile_df["equipo"] == team_sel]
         for _, row in team_gk_pct.iterrows():
             name = row["nombre"]
-            comp = round(row[gk_avail].mean(), 1)
+            comp = round(pd.to_numeric(row[gk_avail], errors="coerce").mean(), 1)
             _gk_grades[name] = {
                 "metrics": gk_avail,
                 "pctiles": {m: round(row[m], 1) for m in gk_avail},
