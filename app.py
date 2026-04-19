@@ -2798,9 +2798,9 @@ def render_profile(data):
             f"<div style='display:flex;align-items:center;gap:18px;'>"
             f"<span style='font-size:1.8rem;font-weight:700;'>{row.get('nombre', '?')}</span>"
             f"<span style='cursor:help;display:inline-flex;flex-direction:column;align-items:center;' title='{_sub_lines}'>"
-            f"<span style='font-size:10px;color:#aaa;'>Overall</span>"
-            f"<span style='font-size:36px;font-weight:bold;color:{_ov_color};line-height:1;'>{_overall_grade}</span>"
-            f"<span style='font-size:9px;color:#777;'>{_overall_pct:.1f}th pctl</span>"
+            f"<span style='font-size:12px;color:#aaa;'>Overall</span>"
+            f"<span style='font-size:52px;font-weight:bold;color:{_ov_color};line-height:1;'>{_overall_grade}</span>"
+            f"<span style='font-size:11px;color:#777;'>{_overall_pct:.1f}th pctl</span>"
             f"</span></div>",
             unsafe_allow_html=True,
         )
