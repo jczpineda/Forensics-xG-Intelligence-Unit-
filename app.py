@@ -594,6 +594,154 @@ def _safe_int(val):
         return 0
 
 
+# ── Player Potential: Historical Data & Scoring ──────────────────────────────
+
+_HIST_SEASONS = ["2020-2021", "2021-2022", "2022-2023", "2023-2024", "2024-2025"]
+_CURRENT_SEASON = "2025-2026"
+
+# Key per-90 metrics used to produce a composite season score per position
+_POTENTIAL_CORE_METRICS = {
+    "Goalkeeper": [
+        "Saves Made", "Clean Sheets", "Catches",
+        "GK Successful Distribution", "Goals Conceded",
+    ],
+    "Centre-Back": [
+        "Total Tackles", "Tackles Won", "Interceptions",
+        "Total Clearances", "Aerial Duels won", "Recoveries",
+        "Total Passes", "Blocked Shots",
+    ],
+    "Full-Back": [
+        "Total Tackles", "Tackles Won", "Interceptions",
+        "Recoveries", "Successful Crosses & Corners",
+        "Total Passes", "Successful Dribbles",
+        "Total Touches In Opposition Box",
+    ],
+    "Central Midfield": [
+        "Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
+        "Key Passes (Attempt Assists)", "Goals", "Goal Assists",
+        "Recoveries", "Interceptions", "Total Tackles",
+        "Progressive Carries",
+    ],
+    "Attacking Midfield": [
+        "Goals", "Goal Assists", "Key Passes (Attempt Assists)",
+        "Through balls", "Total Passes", "Successful Dribbles",
+        "Total Touches In Opposition Box", "Progressive Carries",
+    ],
+    "Striker": [
+        "Goals", "Total Shots", "Shots On Target ( inc goals )",
+        "Goal Assists", "Key Passes (Attempt Assists)",
+        "Total Touches In Opposition Box", "Total Big Chances Scored",
+    ],
+    "Wingers": [
+        "Goals", "Goal Assists", "Key Passes (Attempt Assists)",
+        "Successful Dribbles", "Total Touches In Opposition Box",
+        "Successful Crosses & Corners", "Progressive Carries",
+    ],
+}
+_POTENTIAL_CORE_METRICS["Unknown"] = _POTENTIAL_CORE_METRICS["Central Midfield"]
+
+# Metrics where LOWER is better (percentile is inverted when scoring)
+_INVERTED_POTENTIAL_METRICS = {"Goals Conceded"}
+
+# Minimum 90-minute periods required for a player-season to be scored
+_POT_MIN_90S = 5
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def load_historical_player_data():
+    """Load all available seasons (historical + current) into one DataFrame.
+
+    Historical seasons use per-team CSV files:
+        {OPTA_DIR}/{league}/{season}/equipos/{team}/{team}_jugadores_seasonstats.csv
+    The current season uses the league-level file:
+        {OPTA_DIR}/{league}/jugadores_seasonstats.csv
+
+    Returns a combined DataFrame with per-90 columns prefixed 'p90_' for all
+    core potential metrics.
+    """
+    frames = []
+    _skip_cols = {
+        "nombre", "equipo", "liga", "temporada", "id", "dorsal",
+        "posicion", "posicion_detail", "league_display",
+        "root_folder", "equipo_folder", "link_scoresway",
+        "pais", "cod_jugador", "cod_equipo", "cod_liga", "cod_temporada",
+    }
+
+    for display_name, folder_name in LEAGUE_FOLDERS.items():
+        league_path = os.path.join(OPTA_DIR, folder_name)
+        if not os.path.isdir(league_path):
+            continue
+
+        # ── Historical seasons: per-team CSV files ────────────────────
+        for season in _HIST_SEASONS:
+            equipos_path = os.path.join(league_path, season, "equipos")
+            if not os.path.isdir(equipos_path):
+                continue
+            for team_folder in os.listdir(equipos_path):
+                team_path = os.path.join(equipos_path, team_folder)
+                if not os.path.isdir(team_path):
+                    continue
+                csv_path = os.path.join(team_path, f"{team_folder}_jugadores_seasonstats.csv")
+                if not os.path.exists(csv_path):
+                    candidates = [
+                        f for f in os.listdir(team_path)
+                        if f.endswith("_jugadores_seasonstats.csv")
+                    ]
+                    if not candidates:
+                        continue
+                    csv_path = os.path.join(team_path, candidates[0])
+                try:
+                    df = pd.read_csv(csv_path, encoding="utf-8-sig", low_memory=False)
+                    if df.empty:
+                        continue
+                    df["league_display"] = display_name
+                    df["temporada"] = season
+                    frames.append(df)
+                except Exception:
+                    continue
+
+        # ── Current season: league-level CSV ─────────────────────────
+        current_csv = os.path.join(league_path, "jugadores_seasonstats.csv")
+        if os.path.exists(current_csv):
+            try:
+                df = pd.read_csv(current_csv, encoding="utf-8-sig", low_memory=False)
+                if not df.empty:
+                    df["league_display"] = display_name
+                    df["temporada"] = _CURRENT_SEASON
+                    frames.append(df)
+            except Exception:
+                continue
+
+    if not frames:
+        return pd.DataFrame()
+
+    combined = pd.concat(frames, ignore_index=True)
+
+    # Normalise positions
+    combined["posicion_detail"] = combined["posicion"]
+    combined["posicion"] = combined["posicion_detail"].map(POSITION_MAP).fillna("Unknown")
+
+    # Convert stat columns to numeric
+    for col in combined.columns:
+        if col not in _skip_cols:
+            combined[col] = pd.to_numeric(combined[col], errors="coerce")
+
+    # Keep only players with enough minutes
+    combined = combined[combined["Time Played"].fillna(0) > 0].copy()
+    combined["estimated_90s"] = (combined["Time Played"].fillna(0) / 90).round(2)
+    combined = combined[combined["estimated_90s"] >= _POT_MIN_90S].reset_index(drop=True)
+
+    # Compute per-90 for all core metrics
+    all_core = {m for metrics in _POTENTIAL_CORE_METRICS.values() for m in metrics}
+    for col in all_core:
+        if col in combined.columns:
+            combined[f"p90_{col}"] = (
+                combined[col] / combined["estimated_90s"].replace(0, np.nan)
+            ).round(3)
+
+    return combined
+
+
 # ── Chart Builders ───────────────────────────────────────────────────────────
 
 def chart_bar(data, x, y, title, color=None, orientation="v", height=520):
@@ -4336,6 +4484,519 @@ def render_team_comparison(data):
         st.plotly_chart(fig_bar, use_container_width=True)
 
 
+# ── Player Potential: Scoring Engine ─────────────────────────────────────────
+
+def _season_sort_key(s):
+    """'2022-2023' → 2022  (sortable integer)."""
+    try:
+        return int(s.split("-")[0])
+    except (ValueError, IndexError):
+        return 0
+
+
+def _compute_season_scores(hist_df, player_id=None, player_name=None, position=None):
+    """Return a list of per-season performance score dicts for one player.
+
+    Each dict contains: season, score (0-100 percentile vs peers), n_peers,
+    minutes, league, team, position.
+
+    Matching priority: Opta player ID → exact name (case-insensitive).
+    """
+    if hist_df.empty:
+        return []
+
+    if player_id and "id" in hist_df.columns:
+        mask = hist_df["id"] == player_id
+        # If the ID yields nothing, fall back to name
+        if hist_df[mask].empty and player_name:
+            mask = hist_df["nombre"].str.lower() == str(player_name).lower()
+    elif player_name:
+        mask = hist_df["nombre"].str.lower() == str(player_name).lower()
+    else:
+        return []
+
+    player_rows = hist_df[mask].copy()
+    if player_rows.empty:
+        return []
+
+    # Derive position from data if not supplied
+    if position is None:
+        mode = player_rows["posicion"].mode()
+        position = mode.iloc[0] if not mode.empty else "Unknown"
+
+    core = _POTENTIAL_CORE_METRICS.get(position, _POTENTIAL_CORE_METRICS["Central Midfield"])
+    p90_cols = [f"p90_{m}" for m in core if f"p90_{m}" in hist_df.columns]
+
+    if not p90_cols:
+        return []
+
+    results = []
+    for season in sorted(player_rows["temporada"].unique(), key=_season_sort_key):
+        p_season = player_rows[player_rows["temporada"] == season]
+        if p_season.empty:
+            continue
+        # Take row with most minutes when a player appears for multiple teams
+        p_row = p_season.sort_values("Time Played", ascending=False).iloc[0]
+        league = p_row.get("league_display", "")
+
+        # Peers: same season + league + position
+        peers = hist_df[
+            (hist_df["temporada"] == season)
+            & (hist_df["league_display"] == league)
+            & (hist_df["posicion"] == position)
+        ]
+        if len(peers) < 5:
+            # Fall back to all leagues in that season
+            peers = hist_df[
+                (hist_df["temporada"] == season)
+                & (hist_df["posicion"] == position)
+            ]
+        if len(peers) < 3:
+            continue
+
+        pcts = []
+        for col in p90_cols:
+            val = p_row.get(col, np.nan)
+            if pd.isna(val):
+                continue
+            peer_vals = peers[col].dropna()
+            if len(peer_vals) < 3:
+                continue
+            pct = float((peer_vals < val).sum()) / len(peer_vals) * 100
+            base_metric = col[len("p90_"):]
+            if base_metric in _INVERTED_POTENTIAL_METRICS:
+                pct = 100.0 - pct
+            pcts.append(pct)
+
+        if not pcts:
+            continue
+
+        results.append({
+            "season": season,
+            "score": round(sum(pcts) / len(pcts), 1),
+            "n_peers": len(peers),
+            "minutes": int(p_row.get("Time Played", 0) or 0),
+            "league": league,
+            "team": str(p_row.get("equipo", "")),
+            "position": position,
+        })
+
+    return results
+
+
+def _compute_player_potential(season_scores):
+    """Derive potential metrics from a list of season score dicts.
+
+    Returns a dict with keys:
+        potential_pct, potential_grade, trajectory_score, trajectory_slope,
+        peak_score, current_score, consistency_score, trend_label, n_seasons.
+
+    Formula (weights):
+        40 % Trajectory  — are they improving?
+        35 % Peak        — what ceiling have they reached?
+        15 % Consistency — how reliable is their output?
+        10 % Current     — what is their latest form?
+    """
+    if not season_scores:
+        return None
+
+    scores = [s["score"] for s in season_scores]
+    n = len(scores)
+
+    peak_score = float(max(scores))
+    current_score = float(scores[-1])
+
+    # Linear regression slope (percentile pts / season)
+    if n >= 2:
+        xs = np.arange(n, dtype=float)
+        slope = float(np.polyfit(xs, scores, 1)[0])
+    else:
+        slope = 0.0
+
+    # Map slope → 0-100 trajectory score
+    #   slope ≤ -8 → 0 | slope = 0 → 50 | slope ≥ +8 → 100
+    trajectory_score = min(100.0, max(0.0, (slope + 8.0) / 16.0 * 100.0))
+
+    # Consistency: lower standard deviation → higher score
+    if n >= 2:
+        sd = float(np.std(scores, ddof=1))
+        consistency_score = max(0.0, 100.0 - sd * 3.0)
+    else:
+        consistency_score = 50.0
+
+    # Trend label
+    if slope >= 5:
+        trend_label = "Rising ↑↑"
+    elif slope >= 2:
+        trend_label = "Improving ↑"
+    elif slope >= -2:
+        trend_label = "Stable →"
+    elif slope >= -5:
+        trend_label = "Declining ↓"
+    else:
+        trend_label = "Falling ↓↓"
+
+    potential_pct = min(100.0, max(0.0, round(
+        0.40 * trajectory_score
+        + 0.35 * peak_score
+        + 0.15 * consistency_score
+        + 0.10 * current_score,
+        1,
+    )))
+
+    return {
+        "potential_pct": potential_pct,
+        "potential_grade": _percentile_to_grade(potential_pct),
+        "trajectory_score": round(trajectory_score, 1),
+        "trajectory_slope": round(slope, 2),
+        "peak_score": round(peak_score, 1),
+        "current_score": round(current_score, 1),
+        "consistency_score": round(consistency_score, 1),
+        "trend_label": trend_label,
+        "n_seasons": n,
+    }
+
+
+# ── UI: Player Potential ──────────────────────────────────────────────────────
+
+def render_player_potential(data):
+    """Render the 📈 Player Potential tab."""
+    st.subheader("📈 Player Potential")
+    st.caption(
+        "Trajectory-based potential grading using up to 6 seasons of Opta data "
+        "(2020-21 → 2025-26). Grades reflect growth trend, peak capability, "
+        "consistency, and current form."
+    )
+
+    with st.spinner("Loading historical seasons…"):
+        hist_df = load_historical_player_data()
+
+    if hist_df.empty:
+        st.warning(
+            "Historical data not found. Make sure the Forensics xG Opta Data folder "
+            "is accessible alongside the app."
+        )
+        return
+
+    df_total = data["total"]
+
+    # ── Selectors ────────────────────────────────────────────────────────
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        league_sel = st.selectbox(
+            "League", ["All"] + sorted(df_total["league_display"].unique()), key="pot_lg"
+        )
+    with c2:
+        pool = df_total if league_sel == "All" else df_total[df_total["league_display"] == league_sel]
+        player_names = sorted(pool["nombre"].dropna().unique())
+        player_sel = st.selectbox("Player", player_names, key="pot_pl")
+    with c3:
+        pos_options = sorted(df_total["posicion"].dropna().unique())
+        _player_rows = pool[pool["nombre"] == player_sel]
+        auto_pos = _player_rows["posicion"].iloc[0] if not _player_rows.empty else pos_options[0]
+        pos_idx = pos_options.index(auto_pos) if auto_pos in pos_options else 0
+        position_sel = st.selectbox(
+            "Position", pos_options, index=pos_idx, key="pot_pos",
+            help="Override if Opta's position doesn't match the player's actual role.",
+        )
+
+    if not player_sel:
+        return
+
+    # Resolve Opta player ID for robust cross-season matching
+    player_id = None
+    if not _player_rows.empty and "id" in _player_rows.columns:
+        _id_val = _player_rows["id"].iloc[0]
+        if pd.notna(_id_val) and str(_id_val).strip():
+            player_id = str(_id_val).strip()
+
+    # ── Compute scores ────────────────────────────────────────────────────
+    season_scores = _compute_season_scores(
+        hist_df, player_id=player_id, player_name=player_sel, position=position_sel
+    )
+
+    if not season_scores:
+        st.warning(
+            f"No multi-season data found for **{player_sel}** as a **{position_sel}**. "
+            "They may be a new player, have too few minutes, or use a different name "
+            "across seasons. Try adjusting the position."
+        )
+        return
+
+    potential = _compute_player_potential(season_scores)
+    if not potential:
+        return
+
+    # ── Header card ───────────────────────────────────────────────────────
+    grade = potential["potential_grade"]
+    grade_color = _GRADE_COLORS.get(grade, "#888")
+    trend = potential["trend_label"]
+    n_seasons = potential["n_seasons"]
+    slope = potential["trajectory_slope"]
+
+    col_photo, col_grade, col_kpis = st.columns([1, 1, 3])
+
+    with col_photo:
+        _cur_row = df_total[df_total["nombre"] == player_sel]
+        _team_hint = _cur_row["equipo"].iloc[0] if not _cur_row.empty else None
+        photo_url = _fetch_player_photo(player_sel, team=_team_hint)
+        if photo_url:
+            st.image(photo_url, width=130)
+        else:
+            st.markdown(
+                f"<div style='width:130px;height:130px;border-radius:50%;"
+                f"background:#1a472a;display:flex;align-items:center;"
+                f"justify-content:center;font-size:48px;color:white;'>"
+                f"{player_sel[0]}</div>",
+                unsafe_allow_html=True,
+            )
+
+    with col_grade:
+        st.markdown(
+            f"<div style='text-align:center;padding:8px 0;'>"
+            f"<div style='font-size:11px;color:#aaa;letter-spacing:1px;'>POTENTIAL GRADE</div>"
+            f"<div style='font-size:88px;font-weight:900;color:{grade_color};"
+            f"line-height:1;text-shadow:0 0 20px {grade_color}55;'>{grade}</div>"
+            f"<div style='font-size:12px;color:#777;'>{potential['potential_pct']:.1f}th percentile</div>"
+            f"<div style='font-size:14px;font-weight:600;color:#ccc;margin-top:6px;'>{trend}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    with col_kpis:
+        st.markdown(f"**{player_sel}** · {position_sel} · {n_seasons} season(s) analysed")
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.metric(
+                "Peak Season",
+                f"{potential['peak_score']:.0f}th pctl",
+                help="Best single-season percentile score vs position peers",
+            )
+        with m2:
+            st.metric(
+                "Current Form",
+                f"{potential['current_score']:.0f}th pctl",
+                help="Most recent season percentile vs position peers",
+            )
+        with m3:
+            st.metric(
+                "Trajectory",
+                f"{potential['trajectory_score']:.0f} / 100",
+                delta=f"{slope:+.1f} pts/season",
+                delta_color="normal" if slope >= 0 else "inverse",
+                help="Growth trend (100 = rapidly improving · 50 = stable · 0 = rapidly declining)",
+            )
+        with m4:
+            st.metric(
+                "Consistency",
+                f"{potential['consistency_score']:.0f} / 100",
+                help="Season-to-season stability (higher = more reliable output)",
+            )
+
+    st.markdown("---")
+
+    # ── Career Trajectory Chart ───────────────────────────────────────────
+    st.markdown("### 📊 Career Performance Trajectory")
+
+    seasons_list = [s["season"] for s in season_scores]
+    scores_list = [s["score"] for s in season_scores]
+    traj_df = pd.DataFrame({
+        "Season": seasons_list,
+        "Score": scores_list,
+        "Team": [s["team"] for s in season_scores],
+        "Minutes": [s["minutes"] for s in season_scores],
+        "League": [s["league"] for s in season_scores],
+        "Peers": [s["n_peers"] for s in season_scores],
+    })
+
+    # Trend line via linear regression
+    if len(seasons_list) >= 2:
+        xs = np.arange(len(seasons_list), dtype=float)
+        m_coef, b_coef = np.polyfit(xs, scores_list, 1)
+        traj_df["Trend"] = [round(m_coef * i + b_coef, 1) for i in xs]
+
+    fig_traj = go.Figure()
+
+    # Actual season scores
+    fig_traj.add_trace(go.Scatter(
+        x=traj_df["Season"],
+        y=traj_df["Score"],
+        mode="lines+markers",
+        name="Season Score",
+        line=dict(color="#00e676", width=3),
+        marker=dict(size=11, symbol="circle"),
+        customdata=traj_df[["Team", "Minutes", "League", "Peers"]].values,
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            "Score: <b>%{y:.1f}</b>th pctl<br>"
+            "Team: %{customdata[0]}<br>"
+            "Minutes: %{customdata[1]}<br>"
+            "League: %{customdata[2]}<br>"
+            "Peers: %{customdata[3]}"
+            "<extra></extra>"
+        ),
+    ))
+
+    # Trend line
+    if "Trend" in traj_df.columns:
+        fig_traj.add_trace(go.Scatter(
+            x=traj_df["Season"],
+            y=traj_df["Trend"],
+            mode="lines",
+            name="Linear Trend",
+            line=dict(color="#448aff", width=2, dash="dash"),
+            hoverinfo="skip",
+        ))
+
+    # Reference bands
+    fig_traj.add_hrect(y0=80, y1=100, fillcolor="#00c853", opacity=0.05, line_width=0)
+    fig_traj.add_hrect(y0=60, y1=80, fillcolor="#448aff", opacity=0.05, line_width=0)
+    fig_traj.add_hline(y=80, line_dash="dot", line_color="gold", opacity=0.5,
+                       annotation_text="Elite (80th)", annotation_position="right")
+    fig_traj.add_hline(y=50, line_dash="dot", line_color="#888", opacity=0.4,
+                       annotation_text="Average (50th)", annotation_position="right")
+
+    fig_traj.update_layout(
+        template="plotly_white",
+        height=440,
+        title=f"{player_sel} — Performance vs {position_sel} Peers",
+        xaxis_title="Season",
+        yaxis=dict(title="Percentile (vs peers)", range=[0, 105]),
+        legend=dict(orientation="h", y=1.08),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig_traj, use_container_width=True)
+
+    # ── Season-by-Season Breakdown ────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 📋 Season-by-Season Breakdown")
+
+    breakdown = []
+    for s in season_scores:
+        sc = s["score"]
+        breakdown.append({
+            "Season": s["season"],
+            "League": s["league"],
+            "Team": s["team"],
+            "Minutes": s["minutes"],
+            "Score (pctl)": f"{sc:.1f}",
+            "Grade": _percentile_to_grade(sc),
+            "# Peers": s["n_peers"],
+        })
+    st.dataframe(pd.DataFrame(breakdown), use_container_width=True, hide_index=True)
+
+    # ── Potential score breakdown ─────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 🔢 Potential Score Breakdown")
+
+    _comp_labels = [
+        "Trajectory (40%)",
+        "Peak Performance (35%)",
+        "Consistency (15%)",
+        "Current Form (10%)",
+    ]
+    _comp_raw = [
+        potential["trajectory_score"],
+        potential["peak_score"],
+        potential["consistency_score"],
+        potential["current_score"],
+    ]
+    _comp_weights = [0.40, 0.35, 0.15, 0.10]
+    _comp_weighted = [round(r * w, 1) for r, w in zip(_comp_raw, _comp_weights)]
+    _comp_colors = ["#448aff", "#00e676", "#d500f9", "#ff9100"]
+
+    fig_comp = go.Figure(go.Bar(
+        x=_comp_labels,
+        y=_comp_weighted,
+        text=[f"{v:.1f}" for v in _comp_weighted],
+        textposition="outside",
+        marker_color=_comp_colors,
+        customdata=list(zip(_comp_raw, _comp_weights)),
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            "Raw score: %{customdata[0]:.1f}<br>"
+            "Weight: %{customdata[1]:.0%}<br>"
+            "Contribution: <b>%{y:.1f}</b>"
+            "<extra></extra>"
+        ),
+    ))
+    fig_comp.update_layout(
+        template="plotly_white",
+        height=380,
+        title=f"Potential Score Components  →  Total: {potential['potential_pct']:.1f}  ({grade})",
+        yaxis=dict(range=[0, 44], title="Weighted contribution"),
+        xaxis_title="",
+    )
+    st.plotly_chart(fig_comp, use_container_width=True)
+
+    # ── Key metrics evolution ─────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### 📈 Key Metric Evolution")
+    st.caption(
+        "Select metrics to see how per-90 values changed season by season. "
+        "Only seasons where the player had data are shown."
+    )
+
+    core_metrics = _POTENTIAL_CORE_METRICS.get(position_sel, [])
+    avail_p90 = [m for m in core_metrics if f"p90_{m}" in hist_df.columns]
+
+    if avail_p90:
+        selected_metrics = st.multiselect(
+            "Metrics to display",
+            avail_p90,
+            default=avail_p90[:min(4, len(avail_p90))],
+            key="pot_metrics_sel",
+        )
+
+        if selected_metrics:
+            # Build per-season metric values for this player
+            _id_mask = (
+                (hist_df["id"] == player_id)
+                if player_id and "id" in hist_df.columns
+                else (hist_df["nombre"].str.lower() == player_sel.lower())
+            )
+            p_hist = hist_df[_id_mask].copy()
+            if p_hist.empty:
+                p_hist = hist_df[hist_df["nombre"].str.lower() == player_sel.lower()].copy()
+
+            if not p_hist.empty:
+                p_hist = p_hist.sort_values("temporada", key=lambda s: s.map(_season_sort_key))
+                # De-dup: keep row with most minutes per season
+                p_hist = (
+                    p_hist.sort_values("Time Played", ascending=False)
+                    .drop_duplicates(subset=["temporada"])
+                    .sort_values("temporada", key=lambda s: s.map(_season_sort_key))
+                    .reset_index(drop=True)
+                )
+
+                fig_evo = go.Figure()
+                for m in selected_metrics:
+                    col = f"p90_{m}"
+                    if col not in p_hist.columns:
+                        continue
+                    vals_ev = p_hist[col].tolist()
+                    seas_ev = p_hist["temporada"].tolist()
+                    fig_evo.add_trace(go.Scatter(
+                        x=seas_ev,
+                        y=vals_ev,
+                        mode="lines+markers",
+                        name=m,
+                        marker=dict(size=8),
+                        hovertemplate=f"<b>{m}</b><br>Season: %{{x}}<br>Per 90: %{{y:.2f}}<extra></extra>",
+                    ))
+
+                fig_evo.update_layout(
+                    template="plotly_white",
+                    height=420,
+                    title="Per-90 Metric Evolution",
+                    xaxis_title="Season",
+                    yaxis_title="Per 90 value",
+                    legend=dict(orientation="h", y=1.08),
+                    hovermode="x unified",
+                )
+                st.plotly_chart(fig_evo, use_container_width=True)
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -4360,9 +5021,10 @@ def main():
         return
 
     # Tabs
-    tab_analysis, tab_profile, tab_compare, tab_team, tab_team_cmp, tab_explorer = st.tabs([
+    tab_analysis, tab_profile, tab_compare, tab_team, tab_team_cmp, tab_explorer, tab_potential = st.tabs([
         "🔬 Player Lab", "🪪 Player Profile",
-        "⚔️ Player Comparison", "🏟️ Team Profile", "🏟️ Team Comparison", "🔍 Data Explorer"
+        "⚔️ Player Comparison", "🏟️ Team Profile", "🏟️ Team Comparison", "🔍 Data Explorer",
+        "📈 Player Potential",
     ])
 
     with tab_analysis:
@@ -4377,6 +5039,8 @@ def main():
         render_team_comparison(data)
     with tab_explorer:
         render_explorer(data)
+    with tab_potential:
+        render_player_potential(data)
 
 
 if __name__ == "__main__":
