@@ -4570,17 +4570,25 @@ def _compute_season_scores(hist_df, player_id=None, player_name=None, position=N
         p_row = p_season.sort_values("Time Played", ascending=False).iloc[0]
         league = p_row.get("league_display", "")
 
-        # Peers: same season + league + position
+        # Historical data only stores 4 broad positions (Centre-Back, Central Midfield,
+        # Striker, Goalkeeper). Refined positions like "Full-Back", "Wingers", or
+        # "Attacking Midfield" don't exist as a posicion value in hist_df. Use the
+        # player's own stored historical position so peer lookup always succeeds.
+        hist_pos = str(p_row.get("posicion", "") or "")
+        if not hist_pos or hist_pos == "Unknown":
+            hist_pos = position
+
+        # Peers: same season + league + position (using player's historical position)
         peers = hist_df[
             (hist_df["temporada"] == season)
             & (hist_df["league_display"] == league)
-            & (hist_df["posicion"] == position)
+            & (hist_df["posicion"] == hist_pos)
         ]
         if len(peers) < 5:
             # Fall back to all leagues in that season
             peers = hist_df[
                 (hist_df["temporada"] == season)
-                & (hist_df["posicion"] == position)
+                & (hist_df["posicion"] == hist_pos)
             ]
         if len(peers) < 3:
             continue
