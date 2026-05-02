@@ -2939,8 +2939,23 @@ def render_profile(data):
     _scope_ctx = league if scope_mode == "League" else "All Europe"
     _basis_ctx = f"{role}s" if basis_mode == "Role" else f"{position}s"
 
-    # ── Header Card: [Photo | Name + Grade / Info] ─────────────────────
-    _hdr_photo, _hdr_info, _hdr_spacer = st.columns([1, 3, 2])
+    # ── Compute Potential grade for header display ────────────────────
+    _pot_hist_df = load_historical_player_data()
+    _pot_player_id = None
+    if "id" in row.index and pd.notna(row.get("id", None)) and str(row.get("id", "")).strip():
+        _pot_player_id = str(row["id"]).strip()
+    _pot_season_scores = _compute_season_scores(
+        _pot_hist_df, player_id=_pot_player_id, player_name=row.get("nombre"), position=position
+    )
+    _pot_result = _compute_player_potential(_pot_season_scores)
+    _pot_grade = _pot_result["potential_grade"] if _pot_result else "N/A"
+    _pot_pct = _pot_result["potential_pct"] if _pot_result else None
+    _pot_trend = _pot_result["trend_label"] if _pot_result else ""
+    _pot_n = _pot_result["n_seasons"] if _pot_result else 0
+    _pot_color = _GRADE_COLORS.get(_pot_grade, "#888")
+
+    # ── Header Card: [Photo | Name + Overall Grade | Potential Grade] ─
+    _hdr_photo, _hdr_info, _hdr_pot = st.columns([1, 3, 2])
     with _hdr_photo:
         player_photo = _fetch_player_photo(row.get("nombre", "?"), team=row.get("equipo"))
         if player_photo:
@@ -2963,6 +2978,37 @@ def render_profile(data):
         )
         _pos_label = f"{pos_detail} ({position})" if not _position_changed else f"{position} *(was {_orig_position})*"
         st.markdown(f"**Position:** {_pos_label} · **Role:** {role}")
+    with _hdr_pot:
+        if _pot_result:
+            _pot_tooltip = (
+                f"Trajectory: {_pot_result['trajectory_score']:.0f}/100&#10;"
+                f"Peak: {_pot_result['peak_score']:.0f}th pctl&#10;"
+                f"Consistency: {_pot_result['consistency_score']:.0f}/100&#10;"
+                f"Current: {_pot_result['current_score']:.0f}th pctl&#10;"
+                f"Seasons analysed: {_pot_n}"
+            )
+            st.markdown(
+                f"<div style='text-align:center;padding:4px 0;'>"
+                f"<div style='font-size:12px;color:#aaa;letter-spacing:1px;margin-bottom:2px;'>POTENTIAL GRADE</div>"
+                f"<span style='cursor:help;display:inline-flex;flex-direction:column;align-items:center;' title='{_pot_tooltip}'>"
+                f"<span style='font-size:72px;font-weight:bold;color:{_pot_color};"
+                f"line-height:1;text-shadow:0 0 16px {_pot_color}44;'>{_pot_grade}</span>"
+                f"</span>"
+                f"<div style='font-size:11px;color:#777;margin-top:2px;'>{_pot_pct:.1f}th pctl</div>"
+                f"<div style='font-size:12px;color:#ccc;margin-top:4px;font-weight:600;'>{_pot_trend}</div>"
+                f"<div style='font-size:10px;color:#666;margin-top:2px;'>{_pot_n} season(s) of data</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"<div style='text-align:center;padding:4px 0;'>"
+                f"<div style='font-size:12px;color:#aaa;letter-spacing:1px;margin-bottom:2px;'>POTENTIAL GRADE</div>"
+                f"<div style='font-size:72px;font-weight:bold;color:#555;line-height:1;'>—</div>"
+                f"<div style='font-size:10px;color:#666;margin-top:4px;'>Insufficient historical data</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
     st.caption(f"Grade: {_stat_ctx} · vs {_basis_ctx} in {_scope_ctx}")
 
     # ── Market Value & Salary ────────────────────────────────────────────
