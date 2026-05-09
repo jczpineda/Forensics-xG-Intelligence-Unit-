@@ -2480,7 +2480,7 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
             avail = [m for m in metrics if m in gdf.columns]
             if not avail:
                 continue
-            pct_ranks = gdf.loc[pos_group.index, avail].rank(pct=True) * 100
+            pct_ranks = gdf.loc[pos_group.index, avail].fillna(0).rank(pct=True) * 100
             cat_pct = pct_ranks.mean(axis=1).round(1)
             if cat_name in _INVERTED_GRADE_CATS:
                 cat_pct = (100 - cat_pct).round(1)
@@ -2495,7 +2495,7 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
             avail = [m for m in metrics if m in gdf.columns]
             if not avail:
                 continue
-            pct_ranks = gdf.loc[group.index, avail].rank(pct=True) * 100
+            pct_ranks = gdf.loc[group.index, avail].fillna(0).rank(pct=True) * 100
             cat_pct = pct_ranks.mean(axis=1).round(1)
             if cat_name in _INVERTED_GRADE_CATS:
                 cat_pct = (100 - cat_pct).round(1)
@@ -2511,12 +2511,12 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
     for pos, pos_group in gdf.groupby("posicion"):
         if len(pos_group) < 5:
             continue
-        _ov_mpct[pos] = gdf.loc[pos_group.index, _metric_cols].rank(pct=True) * 100
+        _ov_mpct[pos] = gdf.loc[pos_group.index, _metric_cols].fillna(0).rank(pct=True) * 100
     _lg_mpct = {}
     for (pos, lg), group in gdf.groupby(["posicion", "league_display"]):
         if len(group) < 5:
             continue
-        _lg_mpct[(pos, lg)] = gdf.loc[group.index, _metric_cols].rank(pct=True) * 100
+        _lg_mpct[(pos, lg)] = gdf.loc[group.index, _metric_cols].fillna(0).rank(pct=True) * 100
 
     # ── Classify roles (always from total data) ─────────────────────────
     role_map = {}
@@ -2823,17 +2823,20 @@ def render_player_lab(data):
                      if c.endswith(" Grade") and c not in ("Overall Grade", "League Grade", "Potential Grade")
                      and not c.endswith(" Grade (Europe)")]
     # When a specific league is selected, hide the Overall columns
+    _show_potential = grade_basis == "Potential Grade"
     if sel_leagues:
         display_cols = ["Player", "Team", "League", "Pos", "Role",
-                        "League Grade", "League %ile",
-                        "Potential Grade", "Potential %ile"] + _attr_display + [
-                        "Market Value", "Salary"]
+                        "League Grade", "League %ile"]
+        if _show_potential:
+            display_cols += ["Potential Grade", "Potential %ile"]
+        display_cols += _attr_display + ["Market Value", "Salary"]
     else:
         display_cols = ["Player", "Team", "League", "Pos", "Role",
                         "Overall Grade", "Overall %ile",
-                        "League Grade", "League %ile",
-                        "Potential Grade", "Potential %ile"] + _attr_display + [
-                        "Market Value", "Salary"]
+                        "League Grade", "League %ile"]
+        if _show_potential:
+            display_cols += ["Potential Grade", "Potential %ile"]
+        display_cols += _attr_display + ["Market Value", "Salary"]
     show = filtered[[c for c in display_cols if c in filtered.columns]].reset_index(drop=True)
     st.dataframe(show, use_container_width=True, height=600)
 
