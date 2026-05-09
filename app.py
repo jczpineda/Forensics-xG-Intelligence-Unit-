@@ -1782,6 +1782,58 @@ GK_ATTRIBUTE_GRADE_CATEGORIES = {
     "Sweeping": ["Recoveries", "Total Clearances", "Interceptions"],
 }
 
+# ── Role Exceptional Contribution Bonuses ────────────────────────────────────
+# Maps a role → (bonus_label, [out-of-role metrics that signal exceptional value]).
+# When a player ranks highly vs same-position peers on these *unexpected* metrics,
+# their overall grade receives a small bonus (up to +8 percentile pts).
+# Classic example: Casemiro (Anchor Man) scoring goals at the 90th+ percentile.
+_ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
+    # ── Defensive Midfielders ─────────────────────────────────────────────
+    "Anchor Man":           ("Attacking Output",    ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Shots On Target ( inc goals )"]),
+    "Ball-Winning CM":      ("Creative Output",     ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Total Big Chances Created"]),
+    "Deep-Lying Playmaker": ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )", "Total Touches In Opposition Box"]),
+    # ── Box-to-Box / Mezzala ─────────────────────────────────────────────
+    "Box-to-Box":           ("Elite Finishing",     ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
+    "Mezzala":              ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Recoveries", "Tackle Win %"]),
+    # ── Centre-Backs ─────────────────────────────────────────────────────
+    "Defensive Rock":       ("Ball Distribution",   ["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
+    "Ball-Playing CB":      ("Defensive Dominance", ["Total Tackles", "Interceptions", "Aerial Duels won", "Aerial Win %"]),
+    "Aerial Defender":      ("Ball-Playing Ability",["Total Passes", "Forward Passes", "Progressive Carries", "Pass %"]),
+    "Ball-Winning CB":      ("Distribution Quality",["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
+    # ── Full-Backs ───────────────────────────────────────────────────────
+    "Defensive Full-Back":  ("Attacking Threat",    ["Goal Assists", "Goals", "Successful Crosses & Corners", "Key Passes (Attempt Assists)"]),
+    "Attacking Full-Back":  ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Aerial Duels won", "Tackle Win %"]),
+    "Inverted Full-Back":   ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Recoveries"]),
+    "Creative Full-Back":   ("Goal Threat",         ["Goals", "Goal Assists", "Total Shots"]),
+    # ── Strikers ─────────────────────────────────────────────────────────
+    "Prolific Striker":     ("Pressing Work Rate",  ["Recoveries", "Total Tackles", "Interceptions", "Ground Duels won"]),
+    "Target Man":           ("Creative Link-Up",    ["Goal Assists", "Key Passes (Attempt Assists)", "Through balls", "Total Big Chances Created"]),
+    "Pressing Forward":     ("Clinical Finishing",  ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
+    "False 9":              ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots"]),
+    # ── Wingers ──────────────────────────────────────────────────────────
+    "Inside Forward":       ("Defensive Contribution", ["Recoveries", "Total Tackles", "Interceptions", "Ground Duels won"]),
+    "Classic Winger":       ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Total Shots", "Shots On Target ( inc goals )"]),
+    "Creative Winger":      ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots"]),
+    "Pressing Winger":      ("Creative Output",     ["Key Passes (Attempt Assists)", "Goal Assists", "Through balls", "Total Big Chances Created"]),
+    # ── CAMs ─────────────────────────────────────────────────────────────
+    "Classic 10":           ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots", "Shots On Target ( inc goals )"]),
+    "Shadow Striker":       ("Creative Playmaking", ["Goal Assists", "Key Passes (Attempt Assists)", "Through balls", "Total Big Chances Created"]),
+    "Creative Playmaker":   ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Total Shots"]),
+    "Pressing 10":          ("Clinical Finishing",  ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )"]),
+    # ── Goalkeepers ──────────────────────────────────────────────────────
+    "Shot-Stopper":         ("Distribution Quality",    ["GK Successful Distribution", "Successful Launches", "Launch %"]),
+    "Sweeper Keeper":       ("Shot-Stopping Ability",   ["Saves Made", "Save %", "Goals Prevented"]),
+    "Ball-Playing Goalkeeper": ("Shot-Stopping Ability",["Saves Made", "Save %", "Goals Prevented", "Total Big Chances Saved"]),
+}
+
+# Bonus tiers: (min_avg_bonus_percentile, bonus_percentile_pts, tier_label)
+_EXCEPTIONAL_BONUS_TIERS = [
+    (92, 8, "World Class"),
+    (85, 6, "Elite"),
+    (75, 4, "High"),
+    (65, 2, "Notable"),
+]
+
 # ── Percentile-based role profiles (Opta metrics) ───────────────────────────
 WINGER_ROLE_PROFILES = {
     "Inside Forward": [
@@ -2300,6 +2352,46 @@ def _compute_percentiles(player_row, df_peers, categories, inverted_cats=None):
             cat_pct = 100 - cat_pct
         result[cat] = round(cat_pct, 1)
     return result
+
+
+def _compute_exceptional_contribution(row_data, position, role, df_peers):
+    """Return (label, avg_pct, bonus_pts, tier_label) for out-of-role exceptional metrics.
+
+    If the player ranks above ~65th percentile vs same-position peers on metrics that are
+    *outside* their primary role (e.g. an Anchor Man scoring goals), they receive a grade
+    bonus of up to +8 percentile points added to their Overall Grade.
+    Returns (None, 0.0, 0, '') when no exceptional contribution is detected.
+    """
+    entry = _ROLE_EXCEPTIONAL_CONTRIBUTIONS.get(role)
+    if not entry:
+        return None, 0.0, 0, ""
+    label, metrics = entry
+
+    pos_peers = df_peers[df_peers["posicion"] == position]
+    if len(pos_peers) < 5:
+        return None, 0.0, 0, ""
+
+    avail = [m for m in metrics if m in pos_peers.columns]
+    if not avail:
+        return None, 0.0, 0, ""
+
+    metric_pcts = []
+    for m in avail:
+        val = row_data.get(m, 0)
+        val = 0 if val is None or (isinstance(val, float) and np.isnan(val)) else (val or 0)
+        peer_vals = pos_peers[m].fillna(0)
+        pct = (peer_vals < val).sum() / max(len(peer_vals), 1) * 100
+        metric_pcts.append(pct)
+
+    avg_pct = round(sum(metric_pcts) / len(metric_pcts), 1) if metric_pcts else 0.0
+
+    bonus_pts, tier_label = 0, ""
+    for threshold, pts, badge in _EXCEPTIONAL_BONUS_TIERS:
+        if avg_pct >= threshold:
+            bonus_pts, tier_label = pts, badge
+            break
+
+    return label, avg_pct, bonus_pts, tier_label
 
 
 # ── UI: Player Lab ───────────────────────────────────────────────────────────
@@ -2837,11 +2929,18 @@ def render_profile(data):
         _overall_pct = 0.0
     _overall_grade = _percentile_to_grade(_overall_pct)
 
+    # ── Exceptional Contribution bonus ────────────────────────────────
+    _exc_label, _exc_avg_pct, _exc_bonus_pts, _exc_tier = _compute_exceptional_contribution(
+        grade_row, position, role, peers_all
+    )
+    _display_pct = round(min(99.9, _overall_pct + _exc_bonus_pts), 1) if _exc_bonus_pts > 0 else _overall_pct
+    _display_grade = _percentile_to_grade(_display_pct) if _exc_bonus_pts > 0 else _overall_grade
+
     # ── Build tooltip with sub-grade breakdown ────────────────────────
     _sub_lines = "&#10;".join(
         f"{attr}: {g} ({pct:.0f}th)" for attr, (g, pct) in attr_grades.items() if pct is not None
     )
-    _ov_color = _GRADE_COLORS.get(_overall_grade, "#888")
+    _ov_color = _GRADE_COLORS.get(_display_grade, "#888")
     _stat_ctx = stat_mode if stat_mode != "Total" else "Season Totals"
     _scope_ctx = league if scope_mode == "League" else "All Europe"
     _basis_ctx = f"{role}s" if basis_mode == "Role" else f"{position}s"
@@ -2855,6 +2954,8 @@ def render_profile(data):
         else:
             st.markdown(f"<div style='width:140px;height:140px;border-radius:50%;background:#2d6a4f;display:flex;align-items:center;justify-content:center;font-size:48px;color:white;'>{row.get('nombre', '?')[0]}</div>", unsafe_allow_html=True)
     with _hdr_info:
+        _grade_title = "Overall Grade ⭐" if _exc_bonus_pts > 0 else "Overall Grade"
+        _pctl_suffix = f" (+{_exc_bonus_pts} bonus)" if _exc_bonus_pts > 0 else ""
         st.markdown(
             f"<div style='display:flex;align-items:flex-start;gap:24px;'>"
             f"<div>"
@@ -2862,14 +2963,30 @@ def render_profile(data):
             f"<div style='margin-top:2px;'><strong>{league}</strong></div>"
             f"</div>"
             f"<span style='cursor:help;display:inline-flex;flex-direction:column;align-items:center;' title='{_sub_lines}'>"
-            f"<span style='font-size:12px;color:#aaa;'>Overall Grade</span>"
-            f"<span style='font-size:72px;font-weight:bold;color:{_ov_color};line-height:1;'>{_overall_grade}</span>"
-            f"<span style='font-size:11px;color:#777;'>{_overall_pct:.1f}th pctl</span>"
+            f"<span style='font-size:12px;color:#aaa;'>{_grade_title}</span>"
+            f"<span style='font-size:72px;font-weight:bold;color:{_ov_color};line-height:1;'>{_display_grade}</span>"
+            f"<span style='font-size:11px;color:#777;'>{_display_pct:.1f}th pctl{_pctl_suffix}</span>"
             f"</span></div>",
             unsafe_allow_html=True,
         )
         _pos_label = f"{pos_detail} ({position})" if not _position_changed else f"{position} *(was {_orig_position})*"
         st.markdown(f"**Position:** {_pos_label} · **Role:** {role}")
+        if _exc_bonus_pts > 0:
+            st.markdown(
+                f"<div style='margin-top:10px;background:rgba(255,215,64,0.10);"
+                f"border-left:3px solid #ffd740;border-radius:6px;padding:8px 14px;"
+                f"font-size:13px;color:#eee;'>"
+                f"&#11088; <strong>Exceptional Contribution</strong> &mdash; "
+                f"<strong>{_exc_label}</strong>"
+                f"&nbsp;&middot;&nbsp;<span style='color:#ffd740;font-weight:bold;'>"
+                f"{_exc_tier} (+{_exc_bonus_pts} pts)</span>"
+                f"&nbsp;&middot;&nbsp;{_exc_avg_pct:.0f}th pctl vs {position}s"
+                f"<br><span style='font-size:11px;color:#888;'>"
+                f"Base grade: {_overall_grade} ({_overall_pct:.0f}th pctl) "
+                f"&#8594; boosted to {_display_grade} ({_display_pct:.0f}th pctl)"
+                f"</span></div>",
+                unsafe_allow_html=True,
+            )
     st.caption(f"Grade: {_stat_ctx} · vs {_basis_ctx} in {_scope_ctx}")
 
     # ── Market Value & Salary ────────────────────────────────────────────
