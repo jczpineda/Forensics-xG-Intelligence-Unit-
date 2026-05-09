@@ -2820,7 +2820,7 @@ def render_player_lab(data):
 
     # Show league-scoped attribute grades in the table (Europe-wide variants hidden by default)
     _attr_display = [c for c in filtered.columns
-                     if c.endswith(" Grade") and c not in ("Overall Grade", "League Grade")
+                     if c.endswith(" Grade") and c not in ("Overall Grade", "League Grade", "Potential Grade")
                      and not c.endswith(" Grade (Europe)")]
     # When a specific league is selected, hide the Overall columns
     if sel_leagues:
