@@ -2446,7 +2446,7 @@ def _fmt_euros(val):
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def _build_player_lab_table(grade_df, role_df, mode_label=""):
+def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
     """Pre-compute grades and roles for every player (vectorized, cached 24 h).
 
     *grade_df* is the DataFrame used for percentile grading (Total or Per 90).
@@ -2661,6 +2661,23 @@ def _build_player_lab_table(grade_df, role_df, mode_label=""):
     out["Overall Grade"] = _vec_grade(out["Overall %ile"])
     out["League Grade"] = _vec_grade(out["League %ile"])
 
+    # ── Potential Grade (age-based projection) ───────────────────────────
+    _age_col = next((c for c in ("edad", "age", "Age") if c in gdf.columns), None)
+    _DEFAULT_AGE = 23
+    if _age_col:
+        _ages = pd.to_numeric(gdf[_age_col], errors="coerce").fillna(_DEFAULT_AGE).clip(15, 45).astype(int)
+    else:
+        _ages = pd.Series(_DEFAULT_AGE, index=gdf.index)
+
+    _pot_pcts = []
+    for idx in gdf.index:
+        _cur_pct = float(out.at[idx, "Overall %ile"]) if idx in out.index else 0.0
+        _age = int(_ages.at[idx])
+        _projs = _project_potential(_cur_pct, _age, "No major change", years=pot_years)
+        _pot_pcts.append(_projs[-1]["pct"] if _projs else _cur_pct)
+    out["Potential %ile"] = pd.Series(_pot_pcts, index=gdf.index).round(1)
+    out["Potential Grade"] = _vec_grade(out["Potential %ile"])
+
     # Clean up temp columns
     gdf.drop(columns=["_role"], inplace=True, errors="ignore")
 
@@ -2698,9 +2715,13 @@ def render_player_lab(data):
     else:
         grade_src = grade_df
 
+    # Potential projection years
+    pot_years = st.slider("Potential projection (years)", 1, 5, 3, key="lab_pot_years",
+                          help="Number of years ahead to project each player's grade potential.")
+
     # Build / retrieve the grade table
     with st.spinner("Computing player grades…"):
-        lab_df = _build_player_lab_table(grade_src, df_total, mode_label=lab_stat_mode)
+        lab_df = _build_player_lab_table(grade_src, df_total, mode_label=lab_stat_mode, pot_years=pot_years)
 
     # ── Filters ──────────────────────────────────────────────────────────
     f1, f2, f3 = st.columns(3)
@@ -2722,11 +2743,11 @@ def render_player_lab(data):
     # Grade range selector
     grade_col, grade_type_col = st.columns([3, 1])
     with grade_type_col:
-        _attr_grade_cols = [c for c in lab_df.columns if c.endswith(" Grade") and c not in ("Overall Grade", "League Grade")]
+        _attr_grade_cols = [c for c in lab_df.columns if c.endswith(" Grade") and c not in ("Overall Grade", "League Grade", "Potential Grade")]
         grade_basis = st.selectbox("Grade type",
-            ["Overall Grade", "League Grade"] + _attr_grade_cols,
+            ["Overall Grade", "League Grade", "Potential Grade"] + _attr_grade_cols,
             key="lab_grade_type",
-            help="Individual attribute grades (e.g. 'Defending Grade') are vs same-league peers. '(Europe)' variants compare Europe-wide.")
+            help="'Potential Grade' projects each player's grade forward using an age-based development curve. Individual attribute grades are vs same-league peers.")
     with grade_col:
         min_idx, max_idx = st.select_slider(
             "Grade range",
@@ -2804,12 +2825,14 @@ def render_player_lab(data):
     # When a specific league is selected, hide the Overall columns
     if sel_leagues:
         display_cols = ["Player", "Team", "League", "Pos", "Role",
-                        "League Grade", "League %ile"] + _attr_display + [
+                        "League Grade", "League %ile",
+                        "Potential Grade", "Potential %ile"] + _attr_display + [
                         "Market Value", "Salary"]
     else:
         display_cols = ["Player", "Team", "League", "Pos", "Role",
                         "Overall Grade", "Overall %ile",
-                        "League Grade", "League %ile"] + _attr_display + [
+                        "League Grade", "League %ile",
+                        "Potential Grade", "Potential %ile"] + _attr_display + [
                         "Market Value", "Salary"]
     show = filtered[[c for c in display_cols if c in filtered.columns]].reset_index(drop=True)
     st.dataframe(show, use_container_width=True, height=600)
