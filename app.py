@@ -2074,6 +2074,61 @@ _GRADE_COLORS = {
     "N/A": "#555555",
 }
 
+# ── Potential Grading — Age & Environment Constants ──────────────────────────
+
+# Career phase labels (matched to age brackets in _get_age_growth)
+_POTENTIAL_PHASE_COLORS = {
+    "🚀 Prodigy":        "#00c853",
+    "🚀 High Potential": "#00e676",
+    "📈 Rising Star":    "#69f0ae",
+    "📈 Developing":     "#40c4ff",
+    "📈 Growing":        "#82b1ff",
+    "⭐ Prime":          "#ffd740",
+    "⭐ Late Prime":     "#ffab40",
+    "📉 Declining":      "#ff6e40",
+    "📉 Fading":         "#e53935",
+    "📉 Late Career":    "#b71c1c",
+}
+
+# Club / league upgrade tiers
+# ceiling_boost: extra percentile pts added to the projected ceiling over time
+# year1_dip:     adaptation penalty subtracted in the first projected year
+_CLUB_TIERS = {
+    "No major change": {
+        "ceiling_boost": 0, "year1_dip": 0,
+        "desc": "Player stays at same club or moves laterally — no structural environment change.",
+        "color": "#aaa",
+    },
+    "Elite Club upgrade (e.g. Belgian league → Man Utd, Ajax → Real Madrid)": {
+        "ceiling_boost": 10, "year1_dip": 5,
+        "desc": (
+            "Joining a Champions League elite transforms training, coaching and daily competition. "
+            "Expect a year-1 adaptation dip then accelerated growth — especially for young players."
+        ),
+        "color": "#2d6a4f",
+    },
+    "Big Club upgrade (e.g. Championship → PL Top 6, Ligue 2 → Big-6 club)": {
+        "ceiling_boost": 6, "year1_dip": 3,
+        "desc": "Step up to a top club in a top league — meaningful quality jump with moderate adaptation period.",
+        "color": "#457b9d",
+    },
+    "Top League upgrade (e.g. minor league → Big 5, lower div → top div)": {
+        "ceiling_boost": 5, "year1_dip": 2,
+        "desc": "Moving to a stronger league raises the competitive baseline and accelerates development.",
+        "color": "#f4a261",
+    },
+    "Same level club move": {
+        "ceiling_boost": 1, "year1_dip": 1,
+        "desc": "Lateral move — small fresh-start bonus, minimal structural change.",
+        "color": "#e9c46a",
+    },
+    "Downgrade / lesser league": {
+        "ceiling_boost": -4, "year1_dip": 0,
+        "desc": "Moving to a weaker league typically reduces the ceiling due to lower competition quality.",
+        "color": "#e63946",
+    },
+}
+
 
 def _percentile_to_grade(pct):
     """Convert an overall percentile (0-100) to a letter grade."""
@@ -4337,6 +4392,454 @@ def render_team_comparison(data):
 
 
 
+# ── Potential Grading Helpers ─────────────────────────────────────────────────
+
+def _get_age_growth(age):
+    """Return (annual_percentile_growth_pts, career_phase_label) for a player of *age*.
+
+    Growth is measured in raw percentile points added (or subtracted) per year.
+    Very young players gain the most; players past 29 begin to regress.
+    """
+    if age <= 17:  return  9.0, "🚀 Prodigy"
+    if age <= 19:  return  7.0, "🚀 High Potential"
+    if age <= 21:  return  5.5, "📈 Rising Star"
+    if age <= 23:  return  3.5, "📈 Developing"
+    if age <= 25:  return  1.5, "📈 Growing"
+    if age <= 27:  return  0.5, "⭐ Prime"
+    if age <= 29:  return -1.5, "⭐ Late Prime"
+    if age <= 31:  return -3.0, "📉 Declining"
+    if age <= 33:  return -4.5, "📉 Fading"
+    return -6.0, "📉 Late Career"
+
+
+def _project_potential(current_pct, age, club_tier, years=3):
+    """Year-by-year potential projection.
+
+    Returns a list of dicts with keys: year, pct, grade, phase, notes.
+    Year 0 = current season.  Years 1..N are projections.
+
+    Club boost is phased in:
+      Year 1: 30 % of boost applied, minus the full adaptation dip.
+      Year 2: 65 % of boost applied.
+      Year 3+: 100 % of boost applied.
+    """
+    tier = _CLUB_TIERS.get(club_tier, _CLUB_TIERS["No major change"])
+    ceiling_boost = tier["ceiling_boost"]
+    year1_dip = tier["year1_dip"]
+
+    _phase_label = _get_age_growth(age)[1]
+    projections = [
+        {
+            "year": "Now",
+            "pct": current_pct,
+            "grade": _percentile_to_grade(current_pct),
+            "phase": _phase_label,
+            "notes": "Current performance",
+        }
+    ]
+
+    cumulative_growth = 0.0
+    for yr in range(1, years + 1):
+        yr_growth, yr_phase = _get_age_growth(age + yr)
+        cumulative_growth += yr_growth
+
+        # Club environment effect — phased in over 3 seasons
+        if ceiling_boost != 0:
+            if yr == 1:
+                club_effect = ceiling_boost * 0.30 - year1_dip
+            elif yr == 2:
+                club_effect = ceiling_boost * 0.65
+            else:
+                club_effect = ceiling_boost
+        else:
+            club_effect = 0.0
+
+        projected = max(0.0, min(99.0, round(current_pct + cumulative_growth + club_effect, 1)))
+
+        notes = []
+        if club_effect < 0:
+            notes.append(f"Adaptation dip ({club_effect:+.0f} pctl)")
+        elif club_effect > 0:
+            notes.append(f"Club boost (+{club_effect:.0f} pctl)")
+        if yr_growth > 0:
+            notes.append(f"Age growth (+{yr_growth:.1f}/yr)")
+        elif yr_growth < 0:
+            notes.append(f"Age decline ({yr_growth:.1f}/yr)")
+
+        projections.append({
+            "year": f"+{yr} yr{'s' if yr > 1 else ''}",
+            "pct": projected,
+            "grade": _percentile_to_grade(projected),
+            "phase": yr_phase,
+            "notes": " · ".join(notes) if notes else "Stable",
+        })
+
+    return projections
+
+
+# ── UI: Potential Grading ─────────────────────────────────────────────────────
+
+def render_potential_grading(data):
+    """Project a player's future grade from their age, current form, and club environment."""
+    df_total = data["total"]
+    st.subheader("🌟 Potential Grading")
+    st.caption(
+        "Forecasts a player's grade trajectory using their **current percentile rank**, "
+        "an **age-based development curve**, and an optional **club/league environment boost**."
+    )
+    with st.expander("ℹ️ How it works", expanded=False):
+        st.markdown(
+            """
+**Data basis:** Grades come from Europe-wide percentile rankings vs same-position peers
+using the current 2025-26 Opta season (single season).  In future releases, multi-season
+trends will refine the trajectory further.
+
+**Age curve:** Each age bracket carries a growth rate (e.g. a 19-year-old gains ~+7 percentile
+points per year in ideal conditions; a 31-year-old loses ~3/yr).
+
+**Club/League environment:** Joining an elite club (e.g. Belgian league → Manchester United)
+triggers a ceiling boost because better coaching, training facilities and teammates accelerate
+development — especially for young players.  A year-1 adaptation dip is applied before the
+player fully benefits in year 2-3.
+
+**Uncertainty band:** The shaded area on the chart widens over time — projections become
+less certain the further out you look.
+            """.strip()
+        )
+
+    st.markdown("---")
+    st.markdown("### 1️⃣ Select Player")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        league_sel = st.selectbox(
+            "League", ["All"] + sorted(df_total["league_display"].unique()), key="pot_lg"
+        )
+    with c2:
+        pool = df_total if league_sel == "All" else df_total[df_total["league_display"] == league_sel]
+        player_names = sorted(pool["nombre"].unique())
+        player_sel = st.selectbox("Player", player_names, key="pot_pl")
+
+    if not player_sel:
+        return
+
+    row = pool[pool["nombre"] == player_sel].iloc[0]
+    orig_position = row.get("posicion", "Unknown")
+    league = row.get("league_display", "")
+    team = row.get("equipo", "Unknown")
+
+    # Position / Role override (same pattern as Player Profile)
+    _all_positions = sorted(POSITION_ROLE_PROFILES.keys())
+    _orig_idx = _all_positions.index(orig_position) if orig_position in _all_positions else 0
+    ov1, ov2 = st.columns(2)
+    with ov1:
+        position = st.selectbox(
+            "Position", _all_positions, index=_orig_idx, key="pot_pos",
+            help="Override if Opta's position label doesn't reflect the player's actual role.",
+        )
+    role = _classify_role(row, position, df_total)
+    _avail_roles = list(POSITION_ROLE_PROFILES.get(position, {}).keys())
+    with ov2:
+        if _avail_roles:
+            _role_idx = _avail_roles.index(role) if role in _avail_roles else 0
+            role = st.selectbox("Role", _avail_roles, index=_role_idx, key="pot_role")
+        else:
+            st.selectbox("Role", [role], key="pot_role")
+
+    # ── Compute current Europe-wide overall grade ────────────────────────
+    attr_grades_ov = _compute_attribute_grades(
+        dict(row), position, df_total, league=None, kpi_role=role
+    )
+    _kpi = _ROLE_KPI_PROFILES.get(role)
+    _ov_weights = (
+        {n: w for n, (w, _) in _kpi.items()} if _kpi
+        else _POSITION_GRADE_WEIGHTS.get(position, {})
+    )
+    _ov_pcts = {k: pct for k, (_, pct) in attr_grades_ov.items() if pct is not None}
+    if _ov_pcts and _ov_weights:
+        _w_sum = sum(_ov_weights.get(k, 0) for k in _ov_pcts)
+        current_pct = (
+            sum(_ov_pcts[k] * _ov_weights.get(k, 0) for k in _ov_pcts) / _w_sum
+            if _w_sum > 0 else sum(_ov_pcts.values()) / len(_ov_pcts)
+        )
+    else:
+        current_pct = sum(_ov_pcts.values()) / len(_ov_pcts) if _ov_pcts else 0.0
+    current_pct = round(current_pct, 1)
+    current_grade = _percentile_to_grade(current_pct)
+
+    st.markdown("---")
+    st.markdown("### 2️⃣ Age & Environment")
+
+    # Try to auto-detect age from dataset columns
+    _detected_age = None
+    for _age_col in ("edad", "age", "Age"):
+        if _age_col in row.index:
+            try:
+                _v = int(row[_age_col])
+                if 15 <= _v <= 45:
+                    _detected_age = _v
+                    break
+            except (ValueError, TypeError):
+                pass
+
+    age_c1, age_c2 = st.columns(2)
+    with age_c1:
+        _age_hint = f" (auto-detected: {_detected_age})" if _detected_age else " (enter manually)"
+        age = st.number_input(
+            f"Player Age{_age_hint}",
+            min_value=15, max_value=45,
+            value=_detected_age if _detected_age else 23,
+            step=1, key="pot_age",
+            help=(
+                "Age is the biggest driver of the growth curve.  "
+                "Players ≤21 have the highest ceiling; players ≥30 typically decline."
+            ),
+        )
+    with age_c2:
+        years_ahead = st.slider(
+            "Project ahead (years)", min_value=1, max_value=5, value=3, key="pot_years"
+        )
+
+    club_move = st.selectbox(
+        "Recent Club / League Upgrade",
+        list(_CLUB_TIERS.keys()), index=0, key="pot_club",
+        help=(
+            "Did this player recently join a significantly better club or league?  "
+            "Elite environments accelerate development, especially for young players.  "
+            "A year-1 adaptation dip is modelled before the boost kicks in."
+        ),
+    )
+    tier_data = _CLUB_TIERS[club_move]
+    if tier_data["ceiling_boost"] != 0:
+        _boost_sign = "+" if tier_data["ceiling_boost"] > 0 else ""
+        _dip_txt = f", Yr1 adaptation dip −{tier_data['year1_dip']}" if tier_data["year1_dip"] else ""
+        st.caption(
+            f"**Effect:** {tier_data['desc']}  "
+            f"*(Ceiling {_boost_sign}{tier_data['ceiling_boost']} pctl pts{_dip_txt})*"
+        )
+
+    # ── Run projection ───────────────────────────────────────────────────
+    projections = _project_potential(current_pct, int(age), club_move, years=int(years_ahead))
+    _curr_phase = _get_age_growth(int(age))[1]
+
+    st.markdown("---")
+    st.markdown("### 3️⃣ Grade Projection")
+
+    # ── Header cards: Current + Projected ───────────────────────────────
+    _curr_color = _GRADE_COLORS.get(current_grade, "#888")
+    _phase_color = _POTENTIAL_PHASE_COLORS.get(_curr_phase, "#aaa")
+
+    header_cols = st.columns([1, 1] + [1] * len(projections[1:]))
+    with header_cols[0]:
+        st.markdown(
+            f"<div style='background:#1a1a2e;border-radius:12px;padding:16px 20px;"
+            f"text-align:center;'>"
+            f"<div style='font-size:11px;color:#aaa;'>Current Grade</div>"
+            f"<div style='font-size:60px;font-weight:bold;color:{_curr_color};line-height:1.05;'>"
+            f"{current_grade}</div>"
+            f"<div style='font-size:12px;color:#777;'>{current_pct:.0f}th pctl · {league}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    with header_cols[1]:
+        st.markdown(
+            f"<div style='background:#1a1a2e;border-radius:12px;padding:16px 20px;"
+            f"text-align:center;height:100%;'>"
+            f"<div style='font-size:11px;color:#aaa;'>Career Phase</div>"
+            f"<div style='font-size:26px;line-height:1.3;margin:10px 0;color:{_phase_color};'>"
+            f"{_curr_phase}</div>"
+            f"<div style='font-size:12px;color:#777;'>Age {int(age)} · {role}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+    for col_ui, proj in zip(header_cols[2:], projections[1:]):
+        _pg_color = _GRADE_COLORS.get(proj["grade"], "#888")
+        _delta = proj["pct"] - current_pct
+        _arrow = "↑" if _delta > 0.5 else ("↓" if _delta < -0.5 else "→")
+        _arrow_color = "#00e676" if _delta > 0.5 else ("#e63946" if _delta < -0.5 else "#aaa")
+        with col_ui:
+            st.markdown(
+                f"<div style='background:#1a1a2e;border-radius:12px;padding:16px 20px;"
+                f"text-align:center;'>"
+                f"<div style='font-size:11px;color:#aaa;'>{proj['year']}</div>"
+                f"<div style='font-size:52px;font-weight:bold;color:{_pg_color};line-height:1.05;'>"
+                f"{proj['grade']}</div>"
+                f"<div style='font-size:12px;color:{_arrow_color};'>"
+                f"{_arrow} {proj['pct']:.0f}th pctl</div>"
+                f"<div style='font-size:10px;color:#555;margin-top:4px;'>{proj['notes']}</div>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+    # ── Trajectory chart ─────────────────────────────────────────────────
+    st.markdown("#### 📈 Grade Trajectory")
+
+    years_labels = [p["year"] for p in projections]
+    pct_values = [p["pct"] for p in projections]
+    grade_labels = [p["grade"] for p in projections]
+    bar_colors = [_GRADE_COLORS.get(p["grade"], "#888") for p in projections]
+
+    # Uncertainty band widens with each projected year
+    band_widths = [3 + i * 5 for i in range(len(projections))]
+    upper_band = [min(99, v + bw) for v, bw in zip(pct_values, band_widths)]
+    lower_band = [max(0, v - bw) for v, bw in zip(pct_values, band_widths)]
+
+    fig_proj = go.Figure()
+
+    fig_proj.add_trace(go.Scatter(
+        x=years_labels + years_labels[::-1],
+        y=upper_band + lower_band[::-1],
+        fill="toself",
+        fillcolor="rgba(45,106,79,0.12)",
+        line=dict(color="rgba(0,0,0,0)"),
+        name="Uncertainty range",
+        showlegend=True,
+        hoverinfo="skip",
+    ))
+
+    fig_proj.add_trace(go.Scatter(
+        x=years_labels,
+        y=pct_values,
+        mode="lines+markers+text",
+        marker=dict(size=14, color=bar_colors, line=dict(width=2, color="#1a1a2e")),
+        line=dict(color="#52b788", width=2.5),
+        text=grade_labels,
+        textposition="top center",
+        textfont=dict(size=14, color="#f4a261", family="Arial Black"),
+        name="Projected percentile",
+        customdata=[[p["grade"], p["pct"], p["notes"]] for p in projections],
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            "Grade: %{customdata[0]}<br>"
+            "Percentile: %{customdata[1]:.0f}th<br>"
+            "%{customdata[2]}"
+            "<extra></extra>"
+        ),
+    ))
+
+    # Subtle grade-tier shading
+    for lo, hi, clr in [
+        (97, 100, "#00c853"), (90, 97, "#2979ff"), (80, 90, "#aa00ff"),
+        (70, 80, "#ff9100"), (55, 70, "#ff3d00"), (0, 55, "#d50000"),
+    ]:
+        fig_proj.add_hrect(y0=lo, y1=hi, fillcolor=clr, opacity=0.03, line_width=0)
+
+    for threshold, lbl in [(97, "S"), (90, "A"), (80, "B"), (70, "C"), (55, "D")]:
+        fig_proj.add_hline(
+            y=threshold, line_dash="dot", line_color="rgba(255,255,255,0.15)",
+            annotation_text=lbl, annotation_position="right",
+            annotation_font_color="rgba(255,255,255,0.4)", annotation_font_size=10,
+        )
+
+    fig_proj.update_layout(
+        paper_bgcolor="#1a1a2e", plot_bgcolor="#1a1a2e",
+        font=dict(color="#eee"),
+        yaxis=dict(
+            title="Overall Percentile (Europe-wide vs position peers)",
+            range=[0, 105],
+            gridcolor="rgba(255,255,255,0.06)",
+        ),
+        xaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
+        height=440,
+        legend=dict(font=dict(color="#eee")),
+        margin=dict(t=40, b=40, l=60, r=80),
+    )
+    st.plotly_chart(fig_proj, use_container_width=True)
+
+    # ── Ceiling card + factor breakdown ──────────────────────────────────
+    st.markdown("---")
+    ceiling_col, factor_col = st.columns([1, 2])
+
+    _ceiling_proj = projections[-1]
+    _ceiling_color = _GRADE_COLORS.get(_ceiling_proj["grade"], "#888")
+
+    with ceiling_col:
+        st.markdown(
+            f"<div style='background:#1a1a2e;border-radius:12px;padding:24px;"
+            f"text-align:center;'>"
+            f"<div style='font-size:13px;color:#aaa;margin-bottom:8px;'>"
+            f"Projected Ceiling<br>"
+            f"<span style='font-size:10px;'>in {int(years_ahead)} "
+            f"year{'s' if int(years_ahead) > 1 else ''}</span></div>"
+            f"<div style='font-size:76px;font-weight:bold;color:{_ceiling_color};"
+            f"line-height:1;'>{_ceiling_proj['grade']}</div>"
+            f"<div style='font-size:13px;color:#777;margin-top:8px;'>"
+            f"{_ceiling_proj['pct']:.0f}th percentile</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    with factor_col:
+        st.markdown("#### 🔍 Projection Factors")
+        _curr_growth, _ = _get_age_growth(int(age))
+        _total_age = sum(_get_age_growth(int(age) + y)[0] for y in range(1, int(years_ahead) + 1))
+
+        factors = [
+            {
+                "Factor": "Current Grade",
+                "Value": f"{current_grade} ({current_pct:.0f}th pctl)",
+                "Impact": "Baseline",
+            },
+            {
+                "Factor": "Career Phase",
+                "Value": _curr_phase,
+                "Impact": (
+                    f"{'+' if _curr_growth >= 0 else ''}{_curr_growth:.1f} pctl pts / yr"
+                ),
+            },
+        ]
+        if tier_data["ceiling_boost"] != 0:
+            _dip_part = f", Yr1 dip -{tier_data['year1_dip']}" if tier_data["year1_dip"] else ""
+            factors.append({
+                "Factor": "Club / League Upgrade",
+                "Value": club_move.split("(")[0].strip(),
+                "Impact": f"+{tier_data['ceiling_boost']} ceiling{_dip_part}",
+            })
+        factors.append({
+            "Factor": f"Total Age Growth ({int(years_ahead)} yr)",
+            "Value": f"Age {int(age)} → {int(age) + int(years_ahead)}",
+            "Impact": f"{'+' if _total_age >= 0 else ''}{_total_age:.1f} pctl pts cumulative",
+        })
+        st.dataframe(pd.DataFrame(factors), use_container_width=True, hide_index=True)
+
+    # ── Per-attribute projections ─────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("#### 🔬 Attribute-level Projections")
+    st.caption(
+        "Each attribute grade is projected by applying the same overall percentile delta to each "
+        "individual attribute — showing where the player could end up across key skill categories."
+    )
+
+    if attr_grades_ov:
+        _delta_total = _ceiling_proj["pct"] - current_pct
+        proj_table = []
+        for attr, (grade, pct) in attr_grades_ov.items():
+            if pct is None:
+                continue
+            proj_pct = max(0, min(99, round(pct + _delta_total, 1)))
+            proj_grade = _percentile_to_grade(proj_pct)
+            _chg = proj_pct - pct
+            proj_table.append({
+                "Attribute": attr,
+                "Current Grade": grade,
+                "Current %ile": f"{pct:.0f}",
+                f"Grade (+{int(years_ahead)}yr)": proj_grade,
+                f"%ile (+{int(years_ahead)}yr)": f"{proj_pct:.0f}",
+                "Change": f"{'+' if _chg >= 0 else ''}{_chg:.0f}",
+            })
+        if proj_table:
+            st.dataframe(pd.DataFrame(proj_table), use_container_width=True, hide_index=True)
+
+    # ── Disclaimer ───────────────────────────────────────────────────────
+    st.markdown("---")
+    st.caption(
+        "⚠️ **Statistical estimate only.** These projections are based on typical age-development "
+        "curves in elite football and are NOT guarantees of future performance.  "
+        "Injuries, coaching changes, form, and many other factors can materially alter a "
+        "player's trajectory.  Use as a scouting aid alongside other qualitative evidence."
+    )
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -4361,8 +4864,8 @@ def main():
         return
 
     # Tabs
-    tab_analysis, tab_profile, tab_compare, tab_team, tab_team_cmp, tab_explorer = st.tabs([
-        "🔬 Player Lab", "🪪 Player Profile",
+    tab_analysis, tab_profile, tab_potential, tab_compare, tab_team, tab_team_cmp, tab_explorer = st.tabs([
+        "🔬 Player Lab", "🪪 Player Profile", "🌟 Potential Grading",
         "⚔️ Player Comparison", "🏟️ Team Profile", "🏟️ Team Comparison", "🔍 Data Explorer",
     ])
 
@@ -4370,6 +4873,8 @@ def main():
         render_player_lab(data)
     with tab_profile:
         render_profile(data)
+    with tab_potential:
+        render_potential_grading(data)
     with tab_compare:
         render_player_comparison(data)
     with tab_team:
