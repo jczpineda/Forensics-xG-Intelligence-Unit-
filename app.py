@@ -941,6 +941,13 @@ def _build_pizza_chart(player_row, df_peers, player_name, position, is_gk=False)
     """Nightingale rose (pizza) chart showing per-metric percentiles."""
     labels, values, colors, category_labels = [], [], [], []
 
+    # GKs must be compared only against other GKs — not outfield players.
+    # Without this filter, GK-specific stats (Saves, etc.) would rank near
+    # 100th percentile because every outfield player has 0 saves, producing
+    # inflated pizza numbers that don't reflect true GK quality.
+    if is_gk and "posicion" in df_peers.columns:
+        df_peers = df_peers[df_peers["posicion"] == "Goalkeeper"]
+
     pizza_src = GK_PIZZA_METRICS if is_gk else PIZZA_METRICS
     for cat, metric_list in pizza_src.items():
         color = PIZZA_CATEGORY_COLORS.get(cat, "#999")
@@ -2254,13 +2261,22 @@ def _compute_attribute_grades(row_data, position, df_total, league=None, role=No
       would double-filter and compress the grade range).
     Returns dict: {attribute_name: (grade, percentile)}."""
     _is_gk = position == "Goalkeeper"
-    kpi = _ROLE_KPI_PROFILES.get(kpi_role) if kpi_role else None
-    if kpi:
-        cats = {name: metrics for name, (weight, metrics) in kpi.items()}
+    if _is_gk:
+        # GK grades always derive from the same 4 pizza chart categories so
+        # the grade and the pizza chart are always consistent with each other.
+        # Role-specific KPI profiles are intentionally bypassed for GKs because
+        # they contain single-metric categories (e.g. "Penalties Saved" alone)
+        # that push most keepers to 0th percentile and produce misleading grades.
+        cats = {cat: [col for _, col in metrics] for cat, metrics in GK_PIZZA_METRICS.items()}
         inv_cats = _KPI_INVERTED_CATS
     else:
-        cats = GK_ATTRIBUTE_GRADE_CATEGORIES if _is_gk else ATTRIBUTE_GRADE_CATEGORIES
-        inv_cats = _INVERTED_GRADE_CATS
+        kpi = _ROLE_KPI_PROFILES.get(kpi_role) if kpi_role else None
+        if kpi:
+            cats = {name: metrics for name, (weight, metrics) in kpi.items()}
+            inv_cats = _KPI_INVERTED_CATS
+        else:
+            cats = ATTRIBUTE_GRADE_CATEGORIES
+            inv_cats = _INVERTED_GRADE_CATS
 
     peers = df_total[df_total["posicion"] == position]
     # Fallback: Opta groups all forwards as "Forward" → "Striker", so
@@ -2304,11 +2320,14 @@ def _compute_player_grades(row_data, position, df_total, role=None):
     attr_ov = _compute_attribute_grades(row_data, position, df_total, league=None,
                                         kpi_role=role)
 
-    kpi = _ROLE_KPI_PROFILES.get(role) if role else None
-    if kpi:
-        weights = {name: w for name, (w, _) in kpi.items()}
+    if position == "Goalkeeper":
+        weights = _ROLE_GRADE_WEIGHTS.get(role, {})
     else:
-        weights = _POSITION_GRADE_WEIGHTS.get(position, {})
+        kpi = _ROLE_KPI_PROFILES.get(role) if role else None
+        if kpi:
+            weights = {name: w for name, (w, _) in kpi.items()}
+        else:
+            weights = _POSITION_GRADE_WEIGHTS.get(position, {})
 
     def _weighted_avg(attr_dict):
         pcts = {k: pct for k, (_, pct) in attr_dict.items() if pct is not None}
@@ -2937,11 +2956,14 @@ def render_profile(data):
     _n_attrs = len(_attr_names)
 
     # ── Overall grade (weighted avg of category percentiles) ─────────
-    _kpi_prof = _ROLE_KPI_PROFILES.get(role) if role else None
-    if _kpi_prof:
-        _ov_weights = {name: w for name, (w, _) in _kpi_prof.items()}
+    if position == "Goalkeeper":
+        _ov_weights = _ROLE_GRADE_WEIGHTS.get(role, {})
     else:
-        _ov_weights = _POSITION_GRADE_WEIGHTS.get(position, {})
+        _kpi_prof = _ROLE_KPI_PROFILES.get(role) if role else None
+        if _kpi_prof:
+            _ov_weights = {name: w for name, (w, _) in _kpi_prof.items()}
+        else:
+            _ov_weights = _POSITION_GRADE_WEIGHTS.get(position, {})
     _ov_pcts = {k: pct for k, (_, pct) in attr_grades.items() if pct is not None}
     if _ov_pcts and _ov_weights:
         _w_sum = sum(_ov_weights.get(k, 0) for k in _ov_pcts)
