@@ -346,6 +346,36 @@ def load_data():
     if "Saves Made" in combined.columns and "Goals Conceded" in combined.columns:
         _derived["Goals Prevented"] = combined["Saves Made"].fillna(0) - combined["Goals Conceded"].fillna(0)
 
+    # ── GK PSxG approximation (shot-location weights) ─────────────────────
+    # Inside box (non-penalty): 0.36 xG/shot | Outside box: 0.07 xG/shot | Penalty: 0.76 xG/shot
+    _has_ib = ("Saves Made from Inside Box" in combined.columns
+               and "Goals Conceded Inside Box" in combined.columns)
+    _has_ob = ("Saves Made from Outside Box" in combined.columns
+               and "Goals Conceded Outside Box" in combined.columns)
+    if _has_ib and _has_ob:
+        _shots_ib = (combined["Saves Made from Inside Box"].fillna(0)
+                     + combined["Goals Conceded Inside Box"].fillna(0))
+        _shots_ob = (combined["Saves Made from Outside Box"].fillna(0)
+                     + combined["Goals Conceded Outside Box"].fillna(0))
+        _pens = (combined["Penalties Faced"].fillna(0)
+                 if "Penalties Faced" in combined.columns
+                 else pd.Series(0, index=combined.index))
+        _shots_ib_np = (_shots_ib - _pens).clip(lower=0)
+        _psxg = (_shots_ib_np * 0.36 + _shots_ob * 0.07 + _pens * 0.76).round(1)
+        _derived["PSxG"] = _psxg
+        if "Goals Conceded" in combined.columns:
+            _derived["PSxG+/-"] = (_psxg - combined["Goals Conceded"].fillna(0)).round(1)
+        _total_shots_gk = _shots_ib + _shots_ob
+        _derived["PSxG/Shot"] = (_psxg / _total_shots_gk.replace(0, np.nan)).round(3)
+        _derived["Inside Box Save %"] = (
+            combined["Saves Made from Inside Box"].fillna(0)
+            / _shots_ib.replace(0, np.nan) * 100
+        ).round(1)
+        _derived["Outside Box Save %"] = (
+            combined["Saves Made from Outside Box"].fillna(0)
+            / _shots_ob.replace(0, np.nan) * 100
+        ).round(1)
+
     # GK Launch %
     if "Successful Launches" in combined.columns and "Unsuccessful Launches" in combined.columns:
         total_launches = combined["Successful Launches"].fillna(0) + combined["Unsuccessful Launches"].fillna(0)
@@ -904,6 +934,7 @@ GK_PIZZA_METRICS = {
     "Shot-Stopping": [
         ("Saves", "Saves Made"),
         ("Save %", "Save %"),
+        ("PSxG+/-", "PSxG+/-"),
         ("Goals Prevented", "Goals Prevented"),
         ("Big Chances Saved", "Total Big Chances Saved"),
     ],
@@ -1779,6 +1810,7 @@ _ROLE_KPI_PROFILES = {
 
 GK_ATTRIBUTE_GRADE_CATEGORIES = {
     "Shot-Stopping": ["Saves Made", "Save %",
+                      "PSxG+/-", "PSxG/Shot",
                       "Goals Prevented",
                       "Total Big Chances Saved",
                       "Penalties Saved"],
@@ -3105,6 +3137,123 @@ def render_profile(data):
     else:
         st.info("Not enough data for the pizza chart.")
 
+    # ── GK PSxG Statline ─────────────────────────────────────────────────
+    if _is_gk and row_data.get("PSxG") is not None and not pd.isna(row_data.get("PSxG", float("nan"))):
+        st.markdown("---")
+        st.markdown(f"### 🎯 Post-Shot Expected Goals (PSxG){scope_label}")
+        st.caption(
+            "PSxG is approximated from shot-location data "
+            "(inside box × 0.36 + outside box × 0.07 + penalties × 0.76). "
+            "Percentile ranks are vs same-scope Goalkeepers."
+        )
+
+        gk_peers_psxg = peers[peers["posicion"] == "Goalkeeper"]
+
+        def _gk_pct_rank(val, col):
+            if val is None or pd.isna(val) or col not in gk_peers_psxg.columns:
+                return None
+            peer_vals = gk_peers_psxg[col].fillna(0)
+            return round((peer_vals < val).sum() / max(len(peer_vals), 1) * 100, 1)
+
+        psxg_val       = row_data.get("PSxG") or 0.0
+        psxg_pm_val    = row_data.get("PSxG+/-")
+        psxg_shot_val  = row_data.get("PSxG/Shot")
+        ga_val         = row_data.get("Goals Conceded") or 0
+        saves_val      = row_data.get("Saves Made") or 0
+        shots_faced    = saves_val + ga_val
+
+        ib_shots  = ((row_data.get("Saves Made from Inside Box") or 0)
+                     + (row_data.get("Goals Conceded Inside Box") or 0))
+        ob_shots  = ((row_data.get("Saves Made from Outside Box") or 0)
+                     + (row_data.get("Goals Conceded Outside Box") or 0))
+        ib_saves  = row_data.get("Saves Made from Inside Box") or 0
+        ob_saves  = row_data.get("Saves Made from Outside Box") or 0
+        ib_ga     = row_data.get("Goals Conceded Inside Box") or 0
+        ob_ga     = row_data.get("Goals Conceded Outside Box") or 0
+        ib_sv_pct = row_data.get("Inside Box Save %")
+        ob_sv_pct = row_data.get("Outside Box Save %")
+        sv_pct    = row_data.get("Save %")
+        bc_saved  = row_data.get("Total Big Chances Saved") or 0
+        pens_faced = row_data.get("Penalties Faced") or 0
+        pens_saved = row_data.get("Penalties Saved") or 0
+        pen_sv_pct = round(pens_saved / pens_faced * 100, 1) if pens_faced > 0 else None
+
+        _pm_rank   = _gk_pct_rank(psxg_pm_val, "PSxG+/-")
+        _sv_rank   = _gk_pct_rank(sv_pct, "Save %")
+        _shot_rank = _gk_pct_rank(psxg_shot_val, "PSxG/Shot")
+
+        def _pct_delta(pct):
+            return f"{pct:.0f}th %ile" if pct is not None else None
+
+        # ── Top-row summary metrics ────────────────────────────────────
+        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
+        with mc1:
+            st.metric("Shots Faced", int(shots_faced))
+        with mc2:
+            st.metric("PSxG (approx.)", f"{psxg_val:.1f}",
+                      help="Approximated Post-Shot xG using shot-location weights.")
+        with mc3:
+            st.metric("Goals Against", int(ga_val))
+        with mc4:
+            pm_str = f"+{psxg_pm_val:.1f}" if (psxg_pm_val is not None and psxg_pm_val >= 0) else (f"{psxg_pm_val:.1f}" if psxg_pm_val is not None else "—")
+            st.metric("PSxG+/- (Goals Prevented)", pm_str,
+                      delta=_pct_delta(_pm_rank),
+                      help="Positive = conceded fewer goals than shot-quality suggests.")
+        with mc5:
+            sv_str = f"{sv_pct:.1f}%" if sv_pct is not None else "—"
+            st.metric("Save %", sv_str, delta=_pct_delta(_sv_rank))
+
+        # ── Shot-location breakdown table ─────────────────────────────
+        st.markdown("**📐 Shot Location Breakdown**")
+        loc_rows = [
+            {
+                "Zone": "Inside Box",
+                "Shots Faced": int(ib_shots),
+                "Saves": int(ib_saves),
+                "Goals Against": int(ib_ga),
+                "Save %": f"{ib_sv_pct:.1f}%" if ib_sv_pct is not None else "—",
+            },
+            {
+                "Zone": "Outside Box",
+                "Shots Faced": int(ob_shots),
+                "Saves": int(ob_saves),
+                "Goals Against": int(ob_ga),
+                "Save %": f"{ob_sv_pct:.1f}%" if ob_sv_pct is not None else "—",
+            },
+            {
+                "Zone": "Total",
+                "Shots Faced": int(shots_faced),
+                "Saves": int(saves_val),
+                "Goals Against": int(ga_val),
+                "Save %": f"{sv_pct:.1f}%" if sv_pct is not None else "—",
+            },
+        ]
+        st.dataframe(pd.DataFrame(loc_rows).set_index("Zone"), use_container_width=True)
+
+        # ── Penalty & big-chance rows ──────────────────────────────────
+        pen_col, bc_col, psxg_shot_col = st.columns(3)
+        with pen_col:
+            st.markdown("**🥅 Penalties**")
+            pen_df = pd.DataFrame([{
+                "Faced": int(pens_faced),
+                "Saved": int(pens_saved),
+                "Save %": f"{pen_sv_pct:.1f}%" if pen_sv_pct is not None else "—",
+            }])
+            st.dataframe(pen_df, use_container_width=True, hide_index=True)
+        with bc_col:
+            st.markdown("**⚡ Big Chances**")
+            bc_df = pd.DataFrame([{"Big Chances Saved": int(bc_saved)}])
+            st.dataframe(bc_df, use_container_width=True, hide_index=True)
+        with psxg_shot_col:
+            st.markdown("**📊 Shot Quality**")
+            sq_str = f"{psxg_shot_val:.3f}" if psxg_shot_val is not None else "—"
+            sq_rank = _pct_delta(_shot_rank)
+            sq_df = pd.DataFrame([{
+                "PSxG/Shot": sq_str,
+                "vs GK Peers": sq_rank or "—",
+            }])
+            st.dataframe(sq_df, use_container_width=True, hide_index=True)
+
     # ── FBref Scouting Report ────────────────────────────────────────────
     st.markdown("---")
     st.markdown(f"### 📋 Scouting Report{mode_label}")
@@ -3985,6 +4134,161 @@ _SIMILARITY_PROFILES = {
 _PROFILE_POSITION_DETAIL = {}
 
 
+# ── UI: GK Analysis (PSxG) ───────────────────────────────────────────────────
+
+def render_gk_analysis(data):
+    """PSxG-based goalkeeper performance analysis across all leagues."""
+    df_total = data["total"]
+    df_p90   = data.get("per90", df_total)
+
+    st.subheader("🧤 Goalkeeper Analysis")
+    st.caption(
+        "PSxG-based performance rankings for goalkeepers across Europe's top 6 leagues. "
+        "PSxG is approximated from shot-location data (inside box × 0.36 + outside box × 0.07 + penalties × 0.76)."
+    )
+
+    # Controls
+    ctrl1, ctrl2, ctrl3 = st.columns(3)
+    with ctrl1:
+        gka_mode = st.radio("Stat mode", ["Total", "Per 90"], horizontal=True, key="gka_stat_mode")
+    with ctrl2:
+        league_options = sorted(df_total["league_display"].dropna().unique())
+        gka_leagues = st.multiselect("League", league_options, key="gka_leagues")
+    with ctrl3:
+        min_apps = st.slider("Min appearances", 1, 38, 10, key="gka_min_apps")
+
+    src = df_p90 if gka_mode == "Per 90" else df_total
+    gks = src[src["posicion"] == "Goalkeeper"].copy()
+    if gka_leagues:
+        gks = gks[gks["league_display"].isin(gka_leagues)]
+    gks = gks[gks["Appearances"].fillna(0) >= min_apps]
+
+    if gks.empty or "PSxG" not in gks.columns:
+        st.info("No PSxG data available. Ensure 2025-2026 season data is loaded.")
+        return
+
+    gks = gks[gks["PSxG"].notna() & (gks["PSxG"] > 0)].copy()
+    if gks.empty:
+        st.info("No PSxG data for the selected filters.")
+        return
+
+    scope_lbl = "Per 90" if gka_mode == "Per 90" else "Season Total"
+
+    # ── Scatter: PSxG/Shot vs PSxG+/- ────────────────────────────────────
+    st.markdown(f"### 📊 Shot Difficulty vs Goals Prevented ({scope_lbl})")
+    st.caption(
+        "**X-axis:** average xG per shot faced (higher = harder shots faced). "
+        "**Y-axis:** PSxG+/- — goals prevented above expectation (positive = elite)."
+    )
+
+    if "PSxG+/-" in gks.columns and "PSxG/Shot" in gks.columns:
+        sc_df = gks[["nombre", "equipo", "league_display", "PSxG", "PSxG+/-",
+                     "PSxG/Shot", "Goals Conceded", "Save %", "Appearances"]].dropna(
+            subset=["PSxG+/-", "PSxG/Shot"])
+
+        fig_scatter = px.scatter(
+            sc_df,
+            x="PSxG/Shot",
+            y="PSxG+/-",
+            text="nombre",
+            color="league_display",
+            color_discrete_sequence=CHART_COLORS,
+            hover_data={
+                "nombre": True, "equipo": True, "Appearances": True,
+                "PSxG": ":.1f", "Goals Conceded": True, "Save %": ":.1f",
+                "PSxG/Shot": ":.3f", "PSxG+/-": ":.1f",
+            },
+            labels={
+                "PSxG/Shot": "PSxG/Shot (Shot Difficulty ↑)",
+                "PSxG+/-": "PSxG+/- — Goals Prevented (↑ Better)",
+                "league_display": "League",
+            },
+        )
+        fig_scatter.update_traces(
+            textposition="top center",
+            textfont_size=9,
+            marker=dict(size=9, opacity=0.85),
+        )
+        fig_scatter.add_hline(
+            y=0, line_dash="dash",
+            line_color="rgba(255,255,255,0.35)",
+            annotation_text="Breakeven", annotation_position="bottom right",
+        )
+        x_mid = sc_df["PSxG/Shot"].median()
+        fig_scatter.add_vline(x=x_mid, line_dash="dot", line_color="rgba(255,255,255,0.2)")
+        fig_scatter.update_layout(
+            paper_bgcolor="#1a1a2e", plot_bgcolor="#0d1b2a",
+            font=dict(color="#eee"), height=580,
+            xaxis=dict(gridcolor="rgba(255,255,255,0.08)", title_font_size=12),
+            yaxis=dict(gridcolor="rgba(255,255,255,0.08)", title_font_size=12),
+            legend=dict(bgcolor="rgba(0,0,0,0.3)"),
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
+    # ── Bar chart: PSxG+/- ranking ────────────────────────────────────────
+    st.markdown(f"### 🏆 PSxG+/- Ranking — Goals Prevented ({scope_lbl})")
+
+    if "PSxG+/-" in gks.columns:
+        top_n = st.slider("Show top / bottom N goalkeepers", 5, 30, 15, key="gka_top_n")
+        rank_df = gks[["nombre", "equipo", "league_display", "PSxG+/-", "PSxG",
+                        "Goals Conceded", "Save %", "Appearances"]].dropna(subset=["PSxG+/-"])
+        rank_df = rank_df.sort_values("PSxG+/-", ascending=False)
+        top_df = pd.concat([rank_df.head(top_n), rank_df.tail(top_n)]).drop_duplicates()
+        top_df = top_df.sort_values("PSxG+/-", ascending=True).copy()
+
+        top_df["bar_color"] = top_df["PSxG+/-"].apply(
+            lambda v: "#00e676" if v >= 0 else "#e63946"
+        )
+        top_df["label"] = (top_df["nombre"] + "  ·  "
+                           + top_df["equipo"].str[:18]
+                           + "  [" + top_df["league_display"].str[:3].str.upper() + "]")
+
+        fig_bar = go.Figure(go.Bar(
+            x=top_df["PSxG+/-"],
+            y=top_df["label"],
+            orientation="h",
+            marker_color=top_df["bar_color"].tolist(),
+            text=top_df["PSxG+/-"].apply(lambda v: f"+{v:.1f}" if v >= 0 else f"{v:.1f}"),
+            textposition="outside",
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "PSxG+/-: %{x:.1f}<br>"
+                "<extra></extra>"
+            ),
+        ))
+        fig_bar.update_layout(
+            paper_bgcolor="#1a1a2e", plot_bgcolor="#0d1b2a",
+            font=dict(color="#eee"),
+            height=max(420, len(top_df) * 25 + 80),
+            xaxis=dict(
+                title="PSxG+/- (Goals Prevented)",
+                gridcolor="rgba(255,255,255,0.08)",
+                zeroline=True, zerolinecolor="rgba(255,255,255,0.4)",
+            ),
+            yaxis=dict(tickfont=dict(size=10)),
+            margin=dict(l=260, r=70, t=30, b=40),
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    # ── Full stats table ──────────────────────────────────────────────────
+    st.markdown("### 📋 Full GK PSxG Table")
+    _tbl_cols = [
+        "nombre", "equipo", "league_display", "Appearances",
+        "PSxG", "Goals Conceded", "PSxG+/-", "PSxG/Shot",
+        "Save %", "Inside Box Save %", "Outside Box Save %",
+        "Total Big Chances Saved", "Penalties Faced", "Penalties Saved",
+    ]
+    _tbl_cols = [c for c in _tbl_cols if c in gks.columns]
+    tbl_df = (
+        gks[_tbl_cols]
+        .sort_values("PSxG+/-", ascending=False)
+        .rename(columns={"nombre": "Player", "equipo": "Team", "league_display": "League"})
+        .reset_index(drop=True)
+    )
+    tbl_df.index += 1
+    st.dataframe(tbl_df.round(2), use_container_width=True)
+
+
 def render_player_comparison(data):
     st.subheader("⚔️ Player Comparison")
 
@@ -4817,8 +5121,8 @@ def main():
         return
 
     # Tabs
-    tab_analysis, tab_profile, tab_potential, tab_compare, tab_team, tab_team_cmp, tab_explorer = st.tabs([
-        "🔬 Player Lab", "🪪 Player Profile", "🌟 Potential Grading",
+    tab_analysis, tab_profile, tab_gk, tab_potential, tab_compare, tab_team, tab_team_cmp, tab_explorer = st.tabs([
+        "🔬 Player Lab", "🪪 Player Profile", "🧤 GK Analysis", "🌟 Potential Grading",
         "⚔️ Player Comparison", "🏟️ Team Profile", "🏟️ Team Comparison", "🔍 Data Explorer",
     ])
 
@@ -4826,6 +5130,8 @@ def main():
         render_player_lab(data)
     with tab_profile:
         render_profile(data)
+    with tab_gk:
+        render_gk_analysis(data)
     with tab_potential:
         render_potential_grading(data)
     with tab_compare:
