@@ -3193,9 +3193,9 @@ def render_profile(data):
         ib_sv_pct = row_data.get("Inside Box Save %")
         ob_sv_pct = row_data.get("Outside Box Save %")
         sv_pct    = row_data.get("Save %")
-        bc_saved  = row_data.get("Total Big Chances Saved") or 0
-        pens_faced = row_data.get("Penalties Faced") or 0
-        pens_saved = row_data.get("Penalties Saved") or 0
+        bc_saved   = 0 if pd.isna(_v := row_data.get("Total Big Chances Saved")) else (_v or 0)
+        pens_faced = 0 if pd.isna(_v := row_data.get("Penalties Faced"))         else (_v or 0)
+        pens_saved = 0 if pd.isna(_v := row_data.get("Penalties Saved"))         else (_v or 0)
         pen_sv_pct = round(pens_saved / pens_faced * 100, 1) if pens_faced > 0 else None
 
         _pm_rank   = _gk_pct_rank(psxg_pm_val, "PSxG+/-")
