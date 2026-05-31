@@ -50,6 +50,26 @@ CHART_COLORS = px.colors.qualitative.Vivid
 # ── Player Financials CSV ────────────────────────────────────────────────────
 _FINANCIALS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Player Financials", "player_financials.csv")
 
+# ── Player Photos CSV ────────────────────────────────────────────────────────
+_PHOTOS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_photos.csv")
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _load_photos_csv():
+    """Load manual photo URL overrides from player_photos.csv (if it exists).
+    CSV format: short_name, photo_url
+    short_name must match the Opta 'nombre' field exactly (e.g. 'E. Haaland')."""
+    if not os.path.exists(_PHOTOS_CSV):
+        return {}
+    df = pd.read_csv(_PHOTOS_CSV, encoding="utf-8-sig")
+    lookup = {}
+    for _, r in df.iterrows():
+        key = str(r.get("short_name", "")).strip()
+        url = str(r.get("photo_url", "")).strip()
+        if key and url and url.lower() not in ("", "nan", "none"):
+            lookup[key] = url
+    return lookup
+
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def _load_financials_csv():
@@ -733,7 +753,12 @@ def chart_pie(data, names, values, title, height=500):
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def _fetch_player_photo(player_name, team=None):
-    """Try to fetch a player photo URL from TheSportsDB."""
+    """Return a player photo URL, preferring manual CSV overrides over TheSportsDB."""
+    # 1. Check manual override CSV first
+    _photo_overrides = _load_photos_csv()
+    if player_name in _photo_overrides:
+        return _photo_overrides[player_name]
+    # 2. Fall back to TheSportsDB API
     try:
         q = urllib.parse.quote(player_name)
         url = f"https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p={q}"

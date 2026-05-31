@@ -1,0 +1,5 @@
+﻿short_name,photo_url
+# Add rows below. short_name must match the Opta player name exactly (e.g. E. Haaland).
+# photo_url should be a direct link to a .jpg or .png image.
+# Example:
+# E. Haaland,https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Erling_Haaland_2024.jpg/440px-Erling_Haaland_2024.jpg
