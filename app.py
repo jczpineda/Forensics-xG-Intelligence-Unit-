@@ -1548,12 +1548,12 @@ _ROLE_GRADE_WEIGHTS = {
         "Passing Safety": 0.10,
     },
     # --- Central Midfield roles ---
-    "Anchor Man": {
-        "Attacking": 0.03, "Defending": 0.35, "Passing": 0.20,
+    "Defensive Midfielder": {
+        "Attacking": 0.03, "Defending": 0.40, "Passing": 0.15,
         "Dribbling & Carrying": 0.02, "Ball Progression": 0.05,
-        "Passing Safety": 0.25,
+        "Passing Safety": 0.20,
     },
-    "Box-to-Box": {
+    "Box-to-Box Midfielder": {
         "Attacking": 0.15, "Defending": 0.20, "Passing": 0.15,
         "Dribbling & Carrying": 0.15, "Ball Progression": 0.15,
         "Passing Safety": 0.10,
@@ -1563,56 +1563,51 @@ _ROLE_GRADE_WEIGHTS = {
         "Dribbling & Carrying": 0.05, "Ball Progression": 0.20,
         "Passing Safety": 0.20,
     },
-    "Ball-Winning CM": {
-        "Attacking": 0.05, "Defending": 0.35, "Passing": 0.15,
-        "Dribbling & Carrying": 0.05, "Ball Progression": 0.05,
-        "Passing Safety": 0.20,
-    },
-    "Mezzala": {
-        "Attacking": 0.20, "Defending": 0.05, "Passing": 0.15,
-        "Dribbling & Carrying": 0.25, "Ball Progression": 0.20,
+    "Attacking Midfielder": {
+        "Attacking": 0.25, "Defending": 0.05, "Passing": 0.25,
+        "Dribbling & Carrying": 0.20, "Ball Progression": 0.15,
         "Passing Safety": 0.05,
     },
-    # --- Centre-Back roles ---
-    "Defensive Rock": {
-        "Attacking": 0.02, "Defending": 0.50, "Passing": 0.10,
-        "Dribbling & Carrying": 0.03, "Ball Progression": 0.05,
+    "Central Midfielder": {
+        "Attacking": 0.12, "Defending": 0.18, "Passing": 0.20,
+        "Dribbling & Carrying": 0.10, "Ball Progression": 0.15,
         "Passing Safety": 0.15,
     },
-    "Ball-Playing CB": {
+    # --- Centre-Back roles ---
+    "Ball Playing": {
         "Attacking": 0.05, "Defending": 0.25, "Passing": 0.25,
         "Dribbling & Carrying": 0.05, "Ball Progression": 0.15,
         "Passing Safety": 0.20,
     },
-    "Aerial Defender": {
+    "Duelist": {
+        "Attacking": 0.02, "Defending": 0.50, "Passing": 0.10,
+        "Dribbling & Carrying": 0.02, "Ball Progression": 0.05,
+        "Passing Safety": 0.15,
+    },
+    "Aerial": {
         "Attacking": 0.03, "Defending": 0.50, "Passing": 0.10,
         "Dribbling & Carrying": 0.02, "Ball Progression": 0.05,
         "Passing Safety": 0.10,
     },
-    "Ball-Winning CB": {
-        "Attacking": 0.03, "Defending": 0.45, "Passing": 0.10,
-        "Dribbling & Carrying": 0.02, "Ball Progression": 0.05,
-        "Passing Safety": 0.15,
-    },
     # --- Full-Back roles ---
-    "Attacking Full-Back": {
-        "Attacking": 0.15, "Defending": 0.15, "Passing": 0.20,
-        "Dribbling & Carrying": 0.20, "Ball Progression": 0.20,
-        "Passing Safety": 0.05,
+    "Inverted": {
+        "Attacking": 0.10, "Defending": 0.15, "Passing": 0.25,
+        "Dribbling & Carrying": 0.15, "Ball Progression": 0.20,
+        "Passing Safety": 0.10,
     },
-    "Defensive Full-Back": {
+    "Defensive": {
         "Attacking": 0.05, "Defending": 0.40, "Passing": 0.15,
         "Dribbling & Carrying": 0.05, "Ball Progression": 0.05,
         "Passing Safety": 0.15,
     },
-    "Creative Full-Back": {
-        "Attacking": 0.10, "Defending": 0.15, "Passing": 0.30,
-        "Dribbling & Carrying": 0.15, "Ball Progression": 0.15,
-        "Passing Safety": 0.10,
-    },
-    "Inverted Full-Back": {
-        "Attacking": 0.10, "Defending": 0.15, "Passing": 0.25,
+    "Attacking": {
+        "Attacking": 0.20, "Defending": 0.10, "Passing": 0.25,
         "Dribbling & Carrying": 0.15, "Ball Progression": 0.20,
+        "Passing Safety": 0.05,
+    },
+    "All-Around": {
+        "Attacking": 0.12, "Defending": 0.25, "Passing": 0.20,
+        "Dribbling & Carrying": 0.12, "Ball Progression": 0.12,
         "Passing Safety": 0.10,
     },
     # --- Goalkeeper roles ---
@@ -1725,14 +1720,14 @@ _ROLE_KPI_PROFILES = {
         "Ball Security": (0.10, ["Retention %", "Pass %"]),
     },
     # --- Central Midfield roles ---
-    "Anchor Man": {
-        "Defensive Shield": (0.30, ["Interceptions", "Tackles Won", "Tackle Win %", "Recoveries"]),
-        "Aerial":           (0.15, ["Aerial Duels won", "Aerial Win %"]),
-        "Distribution":     (0.25, ["Pass %", "Total Passes", "Successful Long Passes", "Long Pass %"]),
-        "Ball Security":    (0.20, ["Retention %", "Pass %", "Own Half Pass %"]),
-        "Positioning":      (0.10, ["Blocked Shots", "Blocks", "Total Clearances"]),
+    "Defensive Midfielder": {
+        "Defensive Shield": (0.35, ["Interceptions", "Tackles Won", "Tackle Win %", "Recoveries"]),
+        "Duels":            (0.25, ["Ground Duels won", "Ground Duel %", "Aerial Duels won", "Aerial Win %"]),
+        "Distribution":     (0.20, ["Pass %", "Total Passes", "Own Half Pass %"]),
+        "Ball Security":    (0.15, ["Retention %", "Pass %"]),
+        "Positioning":      (0.05, ["Blocked Shots", "Blocks", "Total Clearances"]),
     },
-    "Box-to-Box": {
+    "Box-to-Box Midfielder": {
         "Defensive Work":   (0.25, ["Tackles Won", "Interceptions", "Recoveries"]),
         "Attacking Output": (0.20, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)"]),
         "Progression":      (0.20, ["Progressive Carries", "Forward Passes", "Final Third Touches"]),
@@ -1746,77 +1741,70 @@ _ROLE_KPI_PROFILES = {
         "Defensive Awareness": (0.15, ["Interceptions", "Recoveries"]),
         "Creativity":          (0.10, ["Key Passes (Attempt Assists)", "Total Big Chances Created"]),
     },
-    "Ball-Winning CM": {
-        "Tackling":         (0.30, ["Tackles Won", "Tackle Win %", "Total Tackles"]),
-        "Defensive Impact": (0.25, ["Interceptions", "Recoveries", "Blocked Shots"]),
-        "Duels":            (0.20, ["Aerial Duels won", "Aerial Win %", "Ground Duels won", "Ground Duel %"]),
-        "Ball Security":    (0.15, ["Retention %", "Pass %"]),
-        "Distribution":     (0.10, ["Pass %", "Total Passes"]),
-    },
-    "Mezzala": {
+    "Attacking Midfielder": {
+        "Attacking Output": (0.30, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Total Big Chances Created"]),
         "Carrying":         (0.25, ["Progressive Carries", "Successful Dribbles", "Dribble %"]),
-        "Attacking Output": (0.25, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)"]),
         "Progression":      (0.20, ["Forward Passes", "Through balls", "Final Third Touches"]),
-        "Passing Quality":  (0.20, ["Pass %", "Short Pass %"]),
+        "Passing Quality":  (0.15, ["Pass %", "Short Pass %"]),
         "Ball Security":    (0.10, ["Retention %", "Dribble %"]),
     },
-    # --- Centre-Back roles ---
-    "Defensive Rock": {
-        "Tackling":      (0.30, ["Tackles Won", "Tackle Win %", "Interceptions"]),
-        "Aerial":        (0.25, ["Aerial Duels won", "Aerial Win %"]),
-        "Clearances":    (0.20, ["Total Clearances", "Blocked Shots", "Blocks"]),
-        "Ball Security": (0.15, ["Retention %", "Pass %", "Own Half Pass %"]),
-        "Distribution":  (0.10, ["Pass %", "Successful Long Passes"]),
+    "Central Midfielder": {
+        "Passing Quality":  (0.25, ["Pass %", "Total Passes", "Forward Passes"]),
+        "Defensive Work":   (0.20, ["Tackles Won", "Interceptions", "Recoveries"]),
+        "Progression":      (0.20, ["Progressive Carries", "Forward Passes", "Final Third Touches"]),
+        "Attacking Output": (0.15, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)"]),
+        "Ball Security":    (0.20, ["Retention %", "Pass %"]),
     },
-    "Ball-Playing CB": {
+    # --- Centre-Back roles ---
+    "Ball Playing": {
         "Distribution":       (0.30, ["Pass %", "Successful Long Passes", "Long Pass %", "Forward Passes"]),
         "Progression":        (0.20, ["Progressive Carries", "Through balls"]),
         "Defensive Solidity": (0.20, ["Interceptions", "Tackles Won", "Total Clearances"]),
         "Ball Security":      (0.20, ["Retention %", "Pass %", "Own Half Pass %"]),
         "Aerial":             (0.10, ["Aerial Duels won", "Aerial Win %"]),
     },
-    "Aerial Defender": {
+    "Duelist": {
+        "Tackling":           (0.30, ["Tackles Won", "Tackle Win %", "Total Tackles", "Interceptions"]),
+        "Duels":              (0.25, ["Ground Duels won", "Ground Duel %", "Duels won", "Duel %"]),
+        "Defensive Solidity": (0.20, ["Total Clearances", "Blocked Shots", "Blocks", "Recoveries"]),
+        "Ball Security":      (0.15, ["Retention %", "Pass %", "Own Half Pass %"]),
+        "Distribution":       (0.10, ["Pass %", "Successful Long Passes"]),
+    },
+    "Aerial": {
         "Aerial":             (0.35, ["Aerial Duels won", "Aerial Win %"]),
         "Defensive Solidity": (0.25, ["Total Clearances", "Interceptions", "Blocks"]),
         "Tackling":           (0.20, ["Tackles Won", "Tackle Win %", "Total Tackles"]),
         "Distribution":       (0.10, ["Pass %", "Successful Long Passes"]),
         "Ball Security":      (0.10, ["Retention %", "Pass %"]),
     },
-    "Ball-Winning CB": {
-        "Tackling":           (0.30, ["Tackles Won", "Tackle Win %", "Total Tackles"]),
-        "Duels":              (0.25, ["Ground Duels won", "Ground Duel %", "Duels won"]),
-        "Defensive Solidity": (0.20, ["Interceptions", "Recoveries", "Blocks"]),
-        "Ball Security":      (0.15, ["Retention %", "Pass %", "Own Half Pass %"]),
-        "Distribution":       (0.10, ["Pass %", "Total Passes"]),
-    },
     # --- Full-Back roles ---
-    "Attacking Full-Back": {
-        "Attacking Output": (0.30, ["Goal Assists", "Key Passes (Attempt Assists)", "Successful Crosses & Corners", "Cross %"]),
-        "Progression":      (0.25, ["Progressive Carries", "Forward Passes", "Final Third Touches"]),
-        "Dribbling":        (0.20, ["Successful Dribbles", "Dribble %"]),
-        "Defensive Duty":   (0.15, ["Tackles Won", "Interceptions"]),
-        "Ball Security":    (0.10, ["Retention %", "Pass %"]),
+    "Inverted": {
+        "Passing Quality": (0.30, ["Pass %", "Forward Passes", "Short Pass %", "Through balls"]),
+        "Progression":     (0.25, ["Progressive Carries", "Successful Dribbles"]),
+        "Distribution":    (0.20, ["Successful Long Passes", "Long Pass %"]),
+        "Defensive Duty":  (0.15, ["Tackles Won", "Interceptions", "Recoveries"]),
+        "Ball Security":   (0.10, ["Retention %", "Pass %"]),
     },
-    "Defensive Full-Back": {
+    "Defensive": {
         "Defensive Solidity": (0.30, ["Tackles Won", "Tackle Win %", "Interceptions"]),
         "Aerial":             (0.15, ["Aerial Duels won", "Aerial Win %"]),
         "Duels":              (0.25, ["Ground Duels won", "Ground Duel %", "Duels won"]),
         "Distribution":       (0.15, ["Pass %", "Successful Long Passes"]),
         "Ball Security":      (0.15, ["Retention %", "Pass %"]),
     },
-    "Creative Full-Back": {
-        "Crossing":        (0.25, ["Successful Crosses & Corners", "Cross %"]),
-        "Creativity":      (0.25, ["Key Passes (Attempt Assists)", "Goal Assists", "Through balls", "Total Big Chances Created"]),
-        "Passing Quality": (0.20, ["Pass %", "Forward Passes", "Long Pass %"]),
-        "Progression":     (0.15, ["Progressive Carries", "Successful Dribbles"]),
-        "Ball Security":   (0.15, ["Retention %", "Pass %"]),
+    "Attacking": {
+        "Attacking Output":      (0.30, ["Goal Assists", "Key Passes (Attempt Assists)", "Successful Crosses & Corners", "Cross %"]),
+        "Crossing & Creativity": (0.20, ["Through balls", "Total Big Chances Created", "Successful Crosses open play"]),
+        "Progression":           (0.20, ["Progressive Carries", "Forward Passes", "Final Third Touches"]),
+        "Dribbling":             (0.15, ["Successful Dribbles", "Dribble %"]),
+        "Ball Security":         (0.15, ["Retention %", "Pass %"]),
     },
-    "Inverted Full-Back": {
-        "Passing Quality": (0.30, ["Pass %", "Forward Passes", "Short Pass %", "Through balls"]),
-        "Progression":     (0.25, ["Progressive Carries", "Successful Dribbles"]),
-        "Distribution":    (0.20, ["Successful Long Passes", "Long Pass %"]),
-        "Defensive Duty":  (0.15, ["Tackles Won", "Interceptions", "Recoveries"]),
-        "Ball Security":   (0.10, ["Retention %", "Pass %"]),
+    "All-Around": {
+        "Defensive Duty":    (0.25, ["Tackles Won", "Interceptions", "Duels won", "Ground Duels won"]),
+        "Attacking Output":  (0.20, ["Goal Assists", "Successful Crosses & Corners", "Key Passes (Attempt Assists)"]),
+        "Passing Quality":   (0.20, ["Pass %", "Forward Passes", "Total Passes"]),
+        "Progression":       (0.20, ["Progressive Carries", "Successful Dribbles"]),
+        "Ball Security":     (0.15, ["Retention %", "Pass %"]),
     },
     # --- Goalkeeper roles ---
     "Shot-Stopper": {
@@ -1858,23 +1846,21 @@ GK_ATTRIBUTE_GRADE_CATEGORIES = {
 # their overall grade receives a small bonus (up to +8 percentile pts).
 # Classic example: Casemiro (Anchor Man) scoring goals at the 90th+ percentile.
 _ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
-    # ── Defensive Midfielders ─────────────────────────────────────────────
-    "Anchor Man":           ("Attacking Output",    ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Shots On Target ( inc goals )"]),
-    "Ball-Winning CM":      ("Creative Output",     ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Total Big Chances Created"]),
-    "Deep-Lying Playmaker": ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )", "Total Touches In Opposition Box"]),
-    # ── Box-to-Box / Mezzala ─────────────────────────────────────────────
-    "Box-to-Box":           ("Elite Finishing",     ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
-    "Mezzala":              ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Recoveries", "Tackle Win %"]),
+    # ── Central Midfielders ───────────────────────────────────────────────
+    "Defensive Midfielder":  ("Attacking Output",    ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Shots On Target ( inc goals )"]),
+    "Box-to-Box Midfielder": ("Elite Finishing",     ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
+    "Deep-Lying Playmaker":  ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )", "Total Touches In Opposition Box"]),
+    "Attacking Midfielder":  ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Recoveries", "Tackle Win %"]),
+    "Central Midfielder":    ("Elite Finishing",     ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
     # ── Centre-Backs ─────────────────────────────────────────────────────
-    "Defensive Rock":       ("Ball Distribution",   ["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
-    "Ball-Playing CB":      ("Defensive Dominance", ["Total Tackles", "Interceptions", "Aerial Duels won", "Aerial Win %"]),
-    "Aerial Defender":      ("Ball-Playing Ability",["Total Passes", "Forward Passes", "Progressive Carries", "Pass %"]),
-    "Ball-Winning CB":      ("Distribution Quality",["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
+    "Ball Playing":          ("Defensive Dominance", ["Total Tackles", "Interceptions", "Aerial Duels won", "Aerial Win %"]),
+    "Duelist":               ("Ball Distribution",   ["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
+    "Aerial":                ("Ball-Playing Ability", ["Total Passes", "Forward Passes", "Progressive Carries", "Pass %"]),
     # ── Full-Backs ───────────────────────────────────────────────────────
-    "Defensive Full-Back":  ("Attacking Threat",    ["Goal Assists", "Goals", "Successful Crosses & Corners", "Key Passes (Attempt Assists)"]),
-    "Attacking Full-Back":  ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Aerial Duels won", "Tackle Win %"]),
-    "Inverted Full-Back":   ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Recoveries"]),
-    "Creative Full-Back":   ("Goal Threat",         ["Goals", "Goal Assists", "Total Shots"]),
+    "Inverted":              ("Attacking Threat",    ["Goal Assists", "Goals", "Key Passes (Attempt Assists)", "Total Shots"]),
+    "Defensive":             ("Attacking Threat",    ["Goal Assists", "Goals", "Successful Crosses & Corners"]),
+    "Attacking":             ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Aerial Duels won", "Tackle Win %"]),
+    "All-Around":            ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Total Shots", "Shots On Target ( inc goals )"]),
     # ── Strikers ─────────────────────────────────────────────────────────
     "Prolific Striker":     ("Pressing Work Rate",  ["Recoveries", "Total Tackles", "Interceptions", "Ground Duels won"]),
     "Target Man":           ("Creative Link-Up",    ["Goal Assists", "Key Passes (Attempt Assists)", "Through balls", "Total Big Chances Created"]),
@@ -1967,13 +1953,13 @@ STRIKER_ROLE_PROFILES = {
 }
 
 CM_ROLE_PROFILES = {
-    "Anchor Man": [
+    "Defensive Midfielder": [
         "Interceptions", "Total Clearances", "Blocked Shots", "Blocks",
         "Aerial Duels", "Aerial Duels won", "Aerial Win %",
-        "Total Tackles", "Tackles Won",
-        "Duels", "Duels won",
+        "Total Tackles", "Tackles Won", "Recoveries",
+        "Duels", "Duels won", "Ground Duels", "Ground Duels won",
     ],
-    "Box-to-Box": [
+    "Box-to-Box Midfielder": [
         "Goals", "Non-Penalty Goals", "Goal Assists",
         "Total Shots", "Shots On Target ( inc goals )",
         "Total Tackles", "Tackles Won", "Interceptions", "Recoveries",
@@ -1989,18 +1975,21 @@ CM_ROLE_PROFILES = {
         "Forward Passes",
         "Through balls", "Final Third Touches",
     ],
-    "Ball-Winning CM": [
-        "Recoveries",
-        "Ground Duels", "Ground Duels won",
-        "Total Tackles", "Tackles Won",
-        "Duels", "Duels won",
-    ],
-    "Mezzala": [
+    "Attacking Midfielder": [
+        "Goals", "Non-Penalty Goals", "Goal Assists",
+        "Key Passes (Attempt Assists)", "Total Big Chances Created",
         "Progressive Carries", "Carries",
         "Successful Dribbles",
-        "Overruns",
-        "Goals", "Non-Penalty Goals", "Total Shots",
+        "Total Shots", "Shots On Target ( inc goals )",
         "Total Touches In Opposition Box",
+    ],
+    "Central Midfielder": [
+        "Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
+        "Pass %", "Forward Passes",
+        "Total Tackles", "Tackles Won", "Interceptions", "Recoveries",
+        "Progressive Carries",
+        "Goal Assists", "Key Passes (Attempt Assists)",
+        "Duels", "Duels won",
     ],
 }
 
@@ -2034,61 +2023,59 @@ CAM_ROLE_PROFILES = {
 }
 
 CENTRE_BACK_ROLE_PROFILES = {
-    "Defensive Rock": [
-        "Total Tackles", "Tackles Won", "Interceptions",
-        "Total Clearances", "Blocked Shots", "Blocks",
-        "Duels", "Duels won",
-        "Ground Duels", "Ground Duels won",
-    ],
-    "Ball-Playing CB": [
+    "Ball Playing": [
         "Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
         "Pass %",
         "Successful Long Passes",
         "Forward Passes",
         "Progressive Carries", "Carries",
     ],
-    "Aerial Defender": [
+    "Duelist": [
+        "Total Tackles", "Tackles Won", "Interceptions",
+        "Total Clearances", "Blocked Shots", "Blocks",
+        "Duels", "Duels won",
+        "Ground Duels", "Ground Duels won",
+        "Recoveries",
+    ],
+    "Aerial": [
         "Aerial Duels", "Aerial Duels won", "Aerial Win %",
         "Total Clearances", "Headed Goals",
-        "Duels", "Duels won",
-    ],
-    "Ball-Winning CB": [
-        "Recoveries",
-        "Ground Duels", "Ground Duels won",
-        "Total Tackles", "Tackles Won",
-        "Interceptions",
         "Duels", "Duels won",
     ],
 }
 
 FULL_BACK_ROLE_PROFILES = {
-    "Attacking Full-Back": [
+    "Inverted": [
+        "Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
+        "Progressive Carries", "Carries",
+        "Recoveries",
+        "Ground Duels", "Ground Duels won",
+        "Successful Dribbles",
+        "Through balls",
+    ],
+    "Defensive": [
+        "Total Tackles", "Tackles Won", "Interceptions",
+        "Total Clearances", "Blocked Shots", "Blocks",
+        "Duels", "Duels won",
+        "Ground Duels", "Ground Duels won",
+    ],
+    "Attacking": [
         "Goal Assists", "Key Passes (Attempt Assists)",
         "Successful Crosses & Corners", "Successful Crosses open play",
         "Progressive Carries", "Carries",
         "Successful Dribbles",
         "Total Touches In Opposition Box", "Goals", "Total Shots",
         "Total Big Chances Created",
+        "Forward Passes", "Through balls",
     ],
-    "Defensive Full-Back": [
-        "Total Tackles", "Tackles Won", "Interceptions",
-        "Total Clearances", "Blocked Shots", "Blocks",
-        "Duels", "Duels won",
-        "Ground Duels", "Ground Duels won",
-    ],
-    "Creative Full-Back": [
+    "All-Around": [
         "Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
         "Pass %",
-        "Successful Long Passes",
-        "Forward Passes",
-        "Through balls", "Key Passes (Attempt Assists)",
-    ],
-    "Inverted Full-Back": [
-        "Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
-        "Progressive Carries", "Carries",
-        "Recoveries",
-        "Ground Duels", "Ground Duels won",
-        "Successful Dribbles",
+        "Total Tackles", "Tackles Won", "Interceptions",
+        "Successful Crosses & Corners",
+        "Goal Assists", "Key Passes (Attempt Assists)",
+        "Duels", "Duels won",
+        "Progressive Carries",
     ],
 }
 
