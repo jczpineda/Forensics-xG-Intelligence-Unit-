@@ -2183,35 +2183,6 @@ _GRADE_COLORS = {
     "N/A": "#555555",
 }
 
-_GRADE_COLOR_THRESHOLDS = [
-    (97, "#00c853"), (93, "#00e676"), (90, "#69f0ae"),
-    (87, "#2979ff"), (83, "#448aff"), (80, "#82b1ff"),
-    (77, "#aa00ff"), (73, "#d500f9"), (70, "#ea80fc"),
-    (67, "#ff9100"), (63, "#ffab40"), (60, "#ffd180"),
-    (55, "#ff3d00"), (50, "#ff6e40"), (45, "#ff9e80"),
-    (0,  "#d50000"),
-]
-
-
-def _pct_to_color(pct):
-    """Return the display color for a raw percentile number."""
-    for threshold, color in _GRADE_COLOR_THRESHOLDS:
-        if pct >= threshold:
-            return color
-    return "#d50000"
-
-
-def _grade_to_color(grade):
-    """Return the display color for an ordinal grade string ('87th') or 'N/A'."""
-    if not grade or grade == "N/A":
-        return "#555555"
-    try:
-        n = int("".join(c for c in str(grade) if c.isdigit()))
-        return _pct_to_color(n)
-    except (ValueError, TypeError):
-        return "#888"
-
-
 # ── Potential Grading — Age & Environment Constants ──────────────────────────
 
 # Career phase labels (matched to age brackets in _get_age_growth)
@@ -2269,24 +2240,23 @@ _CLUB_TIERS = {
 
 
 def _percentile_to_grade(pct):
-    """Convert an overall percentile (0-100) to an ordinal string (e.g. '87th')."""
+    """Convert an overall percentile (0-100) to a letter grade."""
     try:
         if pct is None or (isinstance(pct, float) and (pct != pct)):  # None or NaN
             return "N/A"
-        n = max(0, min(99, int(round(float(pct)))))
+        pct = float(pct)
     except (TypeError, ValueError):
         return "N/A"
-    if 11 <= (n % 100) <= 13:
-        suffix = "th"
-    else:
-        suffix = ["th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th"][n % 10]
-    return f"{n}{suffix}"
+    for threshold, grade in _GRADE_THRESHOLDS:
+        if pct >= threshold:
+            return grade
+    return "F"
 
 
 def _grade_html(grade, label, pct=None):
     """Return styled HTML for a grade card."""
-    color = _pct_to_color(pct) if pct is not None else _grade_to_color(grade)
-    pct_html = ""  # grade is the ordinal percentile; no need to repeat it
+    color = _GRADE_COLORS.get(grade, "#888")
+    pct_html = f"<div style='font-size:10px;color:#777;margin-top:2px;'>{pct:.0f}th</div>" if pct is not None else ""
     return (
         f"<div style='text-align:center;'>"
         f"<div style='font-size:11px;color:#aaa;margin-bottom:4px;'>{label}</div>"
@@ -3074,9 +3044,9 @@ def render_profile(data):
 
     # ── Build tooltip with sub-grade breakdown ────────────────────────
     _sub_lines = "&#10;".join(
-        f"{attr}: {g}" for attr, (g, pct) in attr_grades.items() if pct is not None
+        f"{attr}: {g} ({pct:.0f}th)" for attr, (g, pct) in attr_grades.items() if pct is not None
     )
-    _ov_color = _grade_to_color(_display_grade)
+    _ov_color = _GRADE_COLORS.get(_display_grade, "#888")
     _stat_ctx = stat_mode if stat_mode != "Total" else "Season Totals"
     _scope_ctx = league if scope_mode == "League" else "All Europe"
     _basis_ctx = f"{role}s" if basis_mode == "Role" else f"{position}s"
@@ -3101,7 +3071,7 @@ def render_profile(data):
             f"<span style='cursor:help;display:inline-flex;flex-direction:column;align-items:center;' title='{_sub_lines}'>"
             f"<span style='font-size:12px;color:#aaa;'>{_grade_title}</span>"
             f"<span style='font-size:72px;font-weight:bold;color:{_ov_color};line-height:1;'>{_display_grade}</span>"
-            f"<span style='font-size:11px;color:#777;'>percentile{_pctl_suffix}</span>"
+            f"<span style='font-size:11px;color:#777;'>{_display_pct:.1f}th pctl{_pctl_suffix}</span>"
             f"</span></div>",
             unsafe_allow_html=True,
         )
@@ -3118,8 +3088,8 @@ def render_profile(data):
                 f"{_exc_tier} (+{_exc_bonus_pts} pts)</span>"
                 f"&nbsp;&middot;&nbsp;{_exc_avg_pct:.0f}th pctl vs {position}s"
                 f"<br><span style='font-size:11px;color:#888;'>"
-                f"Base grade: {_overall_grade} "
-                f"&#8594; boosted to {_display_grade}"
+                f"Base grade: {_overall_grade} ({_overall_pct:.0f}th pctl) "
+                f"&#8594; boosted to {_display_grade} ({_display_pct:.0f}th pctl)"
                 f"</span></div>",
                 unsafe_allow_html=True,
             )
@@ -3775,7 +3745,7 @@ def render_team_profile(data):
     )
 
     def _sc_grade_color(grade):
-        return _grade_to_color(grade)
+        return _GRADE_COLORS.get(grade, "#555")
 
     # ── Scorecard metric categories ─────────────────────────────────
     _SC_CATEGORIES = {
@@ -4938,7 +4908,7 @@ less certain the further out you look.
     st.markdown("### 3️⃣ Grade Projection")
 
     # ── Header cards: Current + Projected ───────────────────────────────
-    _curr_color = _grade_to_color(current_grade)
+    _curr_color = _GRADE_COLORS.get(current_grade, "#888")
     _phase_color = _POTENTIAL_PHASE_COLORS.get(_curr_phase, "#aaa")
 
     header_cols = st.columns([1, 1] + [1] * len(projections[1:]))
@@ -4949,7 +4919,7 @@ less certain the further out you look.
             f"<div style='font-size:11px;color:#aaa;'>Current Grade</div>"
             f"<div style='font-size:60px;font-weight:bold;color:{_curr_color};line-height:1.05;'>"
             f"{current_grade}</div>"
-            f"<div style='font-size:12px;color:#777;'>percentile · {league}</div>"
+            f"<div style='font-size:12px;color:#777;'>{current_pct:.0f}th pctl · {league}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -4965,7 +4935,7 @@ less certain the further out you look.
             unsafe_allow_html=True,
         )
     for col_ui, proj in zip(header_cols[2:], projections[1:]):
-        _pg_color = _grade_to_color(proj["grade"])
+        _pg_color = _GRADE_COLORS.get(proj["grade"], "#888")
         _delta = proj["pct"] - current_pct
         _arrow = "↑" if _delta > 0.5 else ("↓" if _delta < -0.5 else "→")
         _arrow_color = "#00e676" if _delta > 0.5 else ("#e63946" if _delta < -0.5 else "#aaa")
@@ -4977,7 +4947,7 @@ less certain the further out you look.
                 f"<div style='font-size:52px;font-weight:bold;color:{_pg_color};line-height:1.05;'>"
                 f"{proj['grade']}</div>"
                 f"<div style='font-size:12px;color:{_arrow_color};'>"
-                f"{_arrow} {_delta:+.0f} pctl</div>"
+                f"{_arrow} {proj['pct']:.0f}th pctl</div>"
                 f"<div style='font-size:10px;color:#555;margin-top:4px;'>{proj['notes']}</div>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -4989,7 +4959,7 @@ less certain the further out you look.
     years_labels = [p["year"] for p in projections]
     pct_values = [p["pct"] for p in projections]
     grade_labels = [p["grade"] for p in projections]
-    bar_colors = [_grade_to_color(p["grade"]) for p in projections]
+    bar_colors = [_GRADE_COLORS.get(p["grade"], "#888") for p in projections]
 
     # Uncertainty band widens with each projected year
     band_widths = [3 + i * 5 for i in range(len(projections))]
@@ -5036,7 +5006,7 @@ less certain the further out you look.
     ]:
         fig_proj.add_hrect(y0=lo, y1=hi, fillcolor=clr, opacity=0.03, line_width=0)
 
-    for threshold, lbl in [(97, "97+"), (90, "90+"), (80, "80+"), (70, "70+"), (55, "55+")]:
+    for threshold, lbl in [(97, "S"), (90, "A"), (80, "B"), (70, "C"), (55, "D")]:
         fig_proj.add_hline(
             y=threshold, line_dash="dot", line_color="rgba(255,255,255,0.15)",
             annotation_text=lbl, annotation_position="right",
@@ -5063,7 +5033,7 @@ less certain the further out you look.
     ceiling_col, factor_col = st.columns([1, 2])
 
     _ceiling_proj = projections[-1]
-    _ceiling_color = _grade_to_color(_ceiling_proj["grade"])
+    _ceiling_color = _GRADE_COLORS.get(_ceiling_proj["grade"], "#888")
 
     with ceiling_col:
         st.markdown(
@@ -5076,7 +5046,7 @@ less certain the further out you look.
             f"<div style='font-size:76px;font-weight:bold;color:{_ceiling_color};"
             f"line-height:1;'>{_ceiling_proj['grade']}</div>"
             f"<div style='font-size:13px;color:#777;margin-top:8px;'>"
-            f"percentile</div>"
+            f"{_ceiling_proj['pct']:.0f}th percentile</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -5089,7 +5059,7 @@ less certain the further out you look.
         factors = [
             {
                 "Factor": "Current Grade",
-                "Value": f"{current_grade} percentile",
+                "Value": f"{current_grade} ({current_pct:.0f}th pctl)",
                 "Impact": "Baseline",
             },
             {
