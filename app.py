@@ -554,6 +554,33 @@ def load_data():
             sf = padj["Saves Made"].fillna(0) + padj["Goals Conceded"].fillna(0)
             padj["Save %"] = (padj["Saves Made"].fillna(0) / sf.replace(0, np.nan) * 100).round(1)
             padj["Goals Prevented"] = padj["Saves Made"].fillna(0) - padj["Goals Conceded"].fillna(0)
+        # Re-derive PSxG from possession-adjusted shot counts
+        _padj_has_ib = ("Saves Made from Inside Box" in padj.columns
+                        and "Goals Conceded Inside Box" in padj.columns)
+        _padj_has_ob = ("Saves Made from Outside Box" in padj.columns
+                        and "Goals Conceded Outside Box" in padj.columns)
+        if _padj_has_ib and _padj_has_ob:
+            _p_shots_ib = (padj["Saves Made from Inside Box"].fillna(0)
+                           + padj["Goals Conceded Inside Box"].fillna(0))
+            _p_shots_ob = (padj["Saves Made from Outside Box"].fillna(0)
+                           + padj["Goals Conceded Outside Box"].fillna(0))
+            _p_pens = (padj["Penalties Faced"].fillna(0)
+                       if "Penalties Faced" in padj.columns
+                       else pd.Series(0, index=padj.index))
+            _p_shots_ib_np = (_p_shots_ib - _p_pens).clip(lower=0)
+            _p_psxg = (_p_shots_ib_np * 0.36 + _p_shots_ob * 0.07 + _p_pens * 0.76).round(1)
+            padj["PSxG"] = _p_psxg
+            padj["PSxG+/-"] = (_p_psxg - padj["Goals Conceded"].fillna(0)).round(1)
+            _p_total_shots = _p_shots_ib + _p_shots_ob
+            padj["PSxG/Shot"] = (_p_psxg / _p_total_shots.replace(0, np.nan)).round(3)
+            padj["Inside Box Save %"] = (
+                padj["Saves Made from Inside Box"].fillna(0)
+                / _p_shots_ib.replace(0, np.nan) * 100
+            ).round(1)
+            padj["Outside Box Save %"] = (
+                padj["Saves Made from Outside Box"].fillna(0)
+                / _p_shots_ob.replace(0, np.nan) * 100
+            ).round(1)
         if "Successful Launches" in padj.columns and "Unsuccessful Launches" in padj.columns:
             tl = padj["Successful Launches"].fillna(0) + padj["Unsuccessful Launches"].fillna(0)
             padj["Launch %"] = (padj["Successful Launches"].fillna(0) / tl.replace(0, np.nan) * 100).round(1)
@@ -593,6 +620,10 @@ def load_data():
                     np.nan,
                 )
         result["padj_per90"] = padj_per90
+
+        # Possession-adjusted values are the default Total and Per 90
+        result["total"] = padj
+        result["per90"] = padj_per90
     else:
         result["padj"] = combined.copy()
         result["padj_per90"] = per90.copy()
@@ -2735,13 +2766,14 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
     return out
 
 
-_STAT_MODES = ["Total", "Per 90", "Padj", "Padj Per 90"]
+_STAT_MODES = ["Total", "Per 90"]
 
 _STAT_MODE_MAP = {
     "Total": "total",
     "Per 90": "per90",
-    "Padj": "padj",
-    "Padj Per 90": "padj_per90",
+    # Legacy aliases (padj is now the default total)
+    "Padj": "total",
+    "Padj Per 90": "per90",
 }
 
 
@@ -2759,7 +2791,7 @@ def render_player_lab(data):
     lab_stat_mode = st.radio("Stat mode", _STAT_MODES, horizontal=True, key="lab_stat_mode")
     grade_df = _select_df(data, lab_stat_mode)
 
-    if lab_stat_mode in ("Per 90", "Padj Per 90") and not grade_df.empty:
+    if lab_stat_mode == "Per 90" and not grade_df.empty:
         _MIN_90S_P90 = 5
         _has_mins = grade_df["estimated_90s"].fillna(0) >= _MIN_90S_P90
         grade_src = grade_df[_has_mins].copy()
@@ -2950,7 +2982,7 @@ def render_profile(data):
         scope_mode = st.radio("Scope", ["League", "Across Europe"], horizontal=True, key="prof_scope")
     with ctrl3:
         basis_mode = st.radio("Basis", ["Position", "Role"], horizontal=True, key="prof_basis")
-    use_per90 = stat_mode in ("Per 90", "Padj Per 90")
+    use_per90 = stat_mode == "Per 90"
     _active_df = _select_df(data, stat_mode)
 
     if use_per90 and not _active_df.empty:
@@ -2965,7 +2997,7 @@ def render_profile(data):
         row_data = dict(p90_match.iloc[0]) if not p90_match.empty else dict(row)
         grade_df = p90_filtered
         grade_row = row_data
-    elif stat_mode in ("Total", "Padj"):
+    elif stat_mode == "Total":
         _src = _active_df
         peers_all = _src.copy()
         row_match = _src[_src["nombre"] == player_sel]
@@ -3756,7 +3788,7 @@ def render_team_profile(data):
 
     # --- Build league reference matching the active stat mode ---
     _league_raw = df[df["league_display"] == league_sel]
-    if stat_mode in ("Per 90", "Padj Per 90") and "estimated_90s" in _league_raw.columns:
+    if stat_mode == "Per 90" and "estimated_90s" in _league_raw.columns:
         _MIN_90S_SC = 5
         _is_team = _league_raw["equipo"] == team_sel
         _has_mins = _league_raw["estimated_90s"].fillna(0) >= _MIN_90S_SC
