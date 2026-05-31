@@ -4139,7 +4139,6 @@ _PROFILE_POSITION_DETAIL = {}
 def render_gk_analysis(data):
     """PSxG-based goalkeeper performance analysis across all leagues."""
     df_total = data["total"]
-    df_p90   = data.get("per90", df_total)
 
     st.subheader("🧤 Goalkeeper Analysis")
     st.caption(
@@ -4150,14 +4149,14 @@ def render_gk_analysis(data):
     # Controls
     ctrl1, ctrl2, ctrl3 = st.columns(3)
     with ctrl1:
-        gka_mode = st.radio("Stat mode", ["Total", "Per 90"], horizontal=True, key="gka_stat_mode")
+        gka_mode = st.radio("Stat mode", _STAT_MODES, horizontal=True, key="gka_stat_mode")
     with ctrl2:
         league_options = sorted(df_total["league_display"].dropna().unique())
         gka_leagues = st.multiselect("League", league_options, key="gka_leagues")
     with ctrl3:
         min_apps = st.slider("Min appearances", 1, 38, 10, key="gka_min_apps")
 
-    src = df_p90 if gka_mode == "Per 90" else df_total
+    src = _select_df(data, gka_mode)
     gks = src[src["posicion"] == "Goalkeeper"].copy()
     if gka_leagues:
         gks = gks[gks["league_display"].isin(gka_leagues)]
@@ -4172,7 +4171,7 @@ def render_gk_analysis(data):
         st.info("No PSxG data for the selected filters.")
         return
 
-    scope_lbl = "Per 90" if gka_mode == "Per 90" else "Season Total"
+    scope_lbl = gka_mode
 
     # ── Scatter: PSxG/Shot vs PSxG+/- ────────────────────────────────────
     st.markdown(f"### 📊 Shot Difficulty vs Goals Prevented ({scope_lbl})")
