@@ -2311,6 +2311,7 @@ def _compute_attribute_grades(row_data, position, df_total, league=None, role=No
       would double-filter and compress the grade range).
     Returns dict: {attribute_name: (grade, percentile)}."""
     _is_gk = position == "Goalkeeper"
+    kpi = None
     if _is_gk:
         # GK grades always derive from the same 4 pizza chart categories so
         # the grade and the pizza chart are always consistent with each other.
