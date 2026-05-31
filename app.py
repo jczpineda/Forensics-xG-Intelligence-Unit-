@@ -2270,7 +2270,12 @@ _CLUB_TIERS = {
 
 def _percentile_to_grade(pct):
     """Convert an overall percentile (0-100) to an ordinal string (e.g. '87th')."""
-    n = max(0, min(99, int(round(pct))))
+    try:
+        if pct is None or (isinstance(pct, float) and (pct != pct)):  # None or NaN
+            return "N/A"
+        n = max(0, min(99, int(round(float(pct)))))
+    except (TypeError, ValueError):
+        return "N/A"
     if 11 <= (n % 100) <= 13:
         suffix = "th"
     else:
