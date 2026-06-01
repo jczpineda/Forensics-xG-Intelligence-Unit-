@@ -1606,6 +1606,11 @@ _ROLE_GRADE_WEIGHTS = {
         "Dribbling & Carrying": 0.10, "Ball Progression": 0.15,
         "Passing Safety": 0.15,
     },
+    "Ball Winning Midfielder": {
+        "Attacking": 0.05, "Defending": 0.45, "Passing": 0.10,
+        "Dribbling & Carrying": 0.05, "Ball Progression": 0.05,
+        "Passing Safety": 0.15,
+    },
     # --- Centre-Back roles ---
     "Ball Playing": {
         "Attacking": 0.05, "Defending": 0.25, "Passing": 0.25,
@@ -1788,6 +1793,12 @@ _ROLE_KPI_PROFILES = {
         "Attacking Output": (0.15, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)"]),
         "Ball Security":    (0.20, ["Retention %", "Pass %"]),
     },
+    "Ball Winning Midfielder": {
+        "Tackling & Pressing": (0.35, ["Tackles Won", "Tackle Win %", "Total Tackles", "Interceptions"]),
+        "Duels":               (0.30, ["Ground Duels won", "Ground Duel %", "Duels won", "Duel %"]),
+        "Recoveries":          (0.20, ["Recoveries", "Total Clearances", "Blocked Shots"]),
+        "Ball Security":       (0.15, ["Retention %", "Pass %"]),
+    },
     # --- Centre-Back roles ---
     "Ball Playing": {
         "Distribution":       (0.30, ["Pass %", "Successful Long Passes", "Long Pass %", "Forward Passes"]),
@@ -1885,6 +1896,7 @@ _ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
     "Deep-Lying Playmaker":  ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )", "Total Touches In Opposition Box"]),
     "Attacking Midfielder":  ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Recoveries", "Tackle Win %"]),
     "Central Midfielder":    ("Elite Finishing",     ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
+    "Ball Winning Midfielder": ("Attacking Output",   ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Shots On Target ( inc goals )"]),
     # ── Centre-Backs ─────────────────────────────────────────────────────
     "Ball Playing":          ("Defensive Dominance", ["Total Tackles", "Interceptions", "Aerial Duels won", "Aerial Win %"]),
     "Duelist":               ("Ball Distribution",   ["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
@@ -2023,6 +2035,14 @@ CM_ROLE_PROFILES = {
         "Progressive Carries",
         "Goal Assists", "Key Passes (Attempt Assists)",
         "Duels", "Duels won",
+    ],
+    "Ball Winning Midfielder": [
+        "Total Tackles", "Tackles Won", "Tackle Win %",
+        "Interceptions", "Recoveries",
+        "Ground Duels", "Ground Duels won", "Ground Duel %",
+        "Duels", "Duels won", "Duel %",
+        "Total Clearances", "Blocked Shots", "Blocks",
+        "Aerial Duels won", "Aerial Win %",
     ],
 }
 
