@@ -3085,52 +3085,58 @@ def render_profile(data):
     _basis_ctx = f"{role}s" if basis_mode == "Role" else f"{position}s"
 
     # ── Header Card: [Photo | Name + Overall Grade] ────────────────────
-    _hdr_photo, _hdr_info = st.columns([1, 3])
-    with _hdr_photo:
-        player_photo = _fetch_player_photo(row.get("nombre", "?"), team=row.get("equipo"))
-        if player_photo:
-            st.image(player_photo, width=140)
-        else:
-            st.markdown(f"<div style='width:140px;height:140px;border-radius:50%;background:#2d6a4f;display:flex;align-items:center;justify-content:center;font-size:48px;color:white;'>{row.get('nombre', '?')[0]}</div>", unsafe_allow_html=True)
-    with _hdr_info:
-        _grade_title = "Overall Grade ⭐" if _exc_bonus_pts > 0 else "Overall Grade"
-        _pctl_suffix = f" (+{_exc_bonus_pts} bonus)" if _exc_bonus_pts > 0 else ""
+    player_photo = _fetch_player_photo(row.get("nombre", "?"), team=row.get("equipo"))
+    _grade_title = "Overall Grade ⭐" if _exc_bonus_pts > 0 else "Overall Grade"
+    _pctl_suffix = f" (+{_exc_bonus_pts} bonus)" if _exc_bonus_pts > 0 else ""
+    _pos_was = f" <em style='color:#aaa;'>(was {_orig_position})</em>" if _position_changed else ""
+    _photo_html = (
+        f"<img src='{player_photo}' width='130' style='border-radius:8px;flex-shrink:0;object-fit:cover;'/>"
+        if player_photo else
+        f"<div style='width:130px;height:130px;border-radius:50%;background:#2d6a4f;"
+        f"display:flex;align-items:center;justify-content:center;font-size:48px;"
+        f"color:white;flex-shrink:0;'>{row.get('nombre', '?')[0]}</div>"
+    )
+    st.markdown(
+        f"<div style='display:flex;align-items:flex-start;gap:16px;margin-bottom:4px;'>"
+        f"{_photo_html}"
+        f"<div style='display:flex;flex-direction:column;justify-content:flex-start;'>"
+        f"<div style='display:flex;align-items:flex-start;gap:24px;'>"
+        f"<div>"
+        f"<div style='font-size:1.8rem;font-weight:700;'>{row.get('nombre', '?')}</div>"
+        f"<div style='margin-top:2px;'><strong>{league}</strong></div>"
+        f"<div style='margin-top:6px;font-size:0.92rem;'>"
+        f"<strong>Position:</strong> {pos_detail} ({position}){_pos_was}"
+        f" &middot; <strong>Role:</strong> {role}</div>"
+        f"</div>"
+        f"<span style='display:inline-flex;flex-direction:column;align-items:center;'>"
+        f"<span style='font-size:12px;color:#aaa;display:flex;align-items:center;gap:4px;'>"
+        f"{_grade_title}"
+        f"<span title='{_sub_lines}' style='cursor:help;display:inline-flex;align-items:center;"
+        f"justify-content:center;width:15px;height:15px;border-radius:50%;"
+        f"background:#444;color:#ccc;font-size:10px;font-weight:bold;line-height:1;'>"
+        f"?</span></span>"
+        f"<span style='font-size:72px;font-weight:bold;color:{_ov_color};line-height:1;'>{_display_grade}</span>"
+        f"<span style='font-size:11px;color:#777;'>{_display_pct:.1f}th pctl{_pctl_suffix}</span>"
+        f"</span></div>"
+        f"</div></div>",
+        unsafe_allow_html=True,
+    )
+    if _exc_bonus_pts > 0:
         st.markdown(
-            f"<div style='display:flex;align-items:flex-start;gap:24px;'>"
-            f"<div>"
-            f"<div style='font-size:1.8rem;font-weight:700;'>{row.get('nombre', '?')}</div>"
-            f"<div style='margin-top:2px;'><strong>{league}</strong></div>"
-            f"</div>"
-            f"<span style='display:inline-flex;flex-direction:column;align-items:center;'>"
-            f"<span style='font-size:12px;color:#aaa;display:flex;align-items:center;gap:4px;'>"
-            f"{_grade_title}"
-            f"<span title='{_sub_lines}' style='cursor:help;display:inline-flex;align-items:center;"
-            f"justify-content:center;width:15px;height:15px;border-radius:50%;"
-            f"background:#444;color:#ccc;font-size:10px;font-weight:bold;line-height:1;'>"
-            f"?</span></span>"
-            f"<span style='font-size:72px;font-weight:bold;color:{_ov_color};line-height:1;'>{_display_grade}</span>"
-            f"<span style='font-size:11px;color:#777;'>{_display_pct:.1f}th pctl{_pctl_suffix}</span>"
+            f"<div style='margin-top:10px;background:rgba(255,215,64,0.10);"
+            f"border-left:3px solid #ffd740;border-radius:6px;padding:8px 14px;"
+            f"font-size:13px;color:#eee;'>"
+            f"&#11088; <strong>Exceptional Contribution</strong> &mdash; "
+            f"<strong>{_exc_label}</strong>"
+            f"&nbsp;&middot;&nbsp;<span style='color:#ffd740;font-weight:bold;'>"
+            f"{_exc_tier} (+{_exc_bonus_pts} pts)</span>"
+            f"&nbsp;&middot;&nbsp;{_exc_avg_pct:.0f}th pctl vs {position}s"
+            f"<br><span style='font-size:11px;color:#888;'>"
+            f"Base grade: {_overall_grade} ({_overall_pct:.0f}th pctl) "
+            f"&#8594; boosted to {_display_grade} ({_display_pct:.0f}th pctl)"
             f"</span></div>",
             unsafe_allow_html=True,
         )
-        _pos_label = f"{pos_detail} ({position})" if not _position_changed else f"{position} *(was {_orig_position})*"
-        st.markdown(f"**Position:** {_pos_label} · **Role:** {role}")
-        if _exc_bonus_pts > 0:
-            st.markdown(
-                f"<div style='margin-top:10px;background:rgba(255,215,64,0.10);"
-                f"border-left:3px solid #ffd740;border-radius:6px;padding:8px 14px;"
-                f"font-size:13px;color:#eee;'>"
-                f"&#11088; <strong>Exceptional Contribution</strong> &mdash; "
-                f"<strong>{_exc_label}</strong>"
-                f"&nbsp;&middot;&nbsp;<span style='color:#ffd740;font-weight:bold;'>"
-                f"{_exc_tier} (+{_exc_bonus_pts} pts)</span>"
-                f"&nbsp;&middot;&nbsp;{_exc_avg_pct:.0f}th pctl vs {position}s"
-                f"<br><span style='font-size:11px;color:#888;'>"
-                f"Base grade: {_overall_grade} ({_overall_pct:.0f}th pctl) "
-                f"&#8594; boosted to {_display_grade} ({_display_pct:.0f}th pctl)"
-                f"</span></div>",
-                unsafe_allow_html=True,
-            )
     st.caption(f"Grade: {_stat_ctx} · vs {_basis_ctx} in {_scope_ctx}")
 
     # ── Market Value & Salary ────────────────────────────────────────────

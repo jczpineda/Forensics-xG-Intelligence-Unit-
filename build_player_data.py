@@ -318,6 +318,12 @@ def main():
 
         if needs_mv:
             mv = fetch_transfermarkt(name, team)
+            if not mv:
+                # Abbreviated name (e.g. 'M. Hjulmand') often fails on TM;
+                # try the full name resolved from the Capology index
+                _full = _expand_name(name)
+                if _full != name:
+                    mv = fetch_transfermarkt(_full, team)
             if mv:
                 print(f"💰{mv} ", end="")
             time.sleep(1.2)  # Transfermarkt rate limiting
