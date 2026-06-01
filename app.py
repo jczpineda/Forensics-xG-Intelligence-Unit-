@@ -2891,7 +2891,27 @@ def render_player_lab(data):
             role_pool = lab_df[lab_df["Position"].isin(sel_positions)]
         else:
             role_pool = lab_df
-        role_options = sorted(role_pool["Role"].unique())
+        # Order roles GK → CB → FB → CM → CAM → Wingers → Striker
+        _ROLE_ORDER = [
+            # Goalkeepers
+            "Shot-Stopper", "Sweeper Keeper", "Ball-Playing Goalkeeper",
+            # Centre-Backs
+            "Ball Playing", "Duelist", "Libero",
+            # Full-Backs
+            "Defensive", "Inverted", "All-Around", "Attacking",
+            # Central Midfield
+            "Defensive Midfielder", "Ball Winning Midfielder", "Deep-Lying Playmaker",
+            "Central Midfielder", "Box-to-Box Midfielder",
+            # Attacking Midfield
+            "Classic 10", "Advanced Playmaker", "Shadow Striker", "Trequartista", "Mezzala",
+            # Wingers
+            "Inverted Winger", "Classic Winger", "Creative Winger", "Pressing Winger",
+            # Strikers
+            "Prolific Striker", "Target Man", "Pressing Forward", "False 9",
+        ]
+        _available_in_pool = set(role_pool["Role"].unique())
+        role_options = [r for r in _ROLE_ORDER if r in _available_in_pool] + \
+                       sorted(_available_in_pool - set(_ROLE_ORDER))
         sel_roles = st.multiselect("Role", role_options, default=[], key="lab_roles")
     with f4:
         sel_squad_roles = st.multiselect("Squad Role", ["Starter", "Rotation", "Depth"],
