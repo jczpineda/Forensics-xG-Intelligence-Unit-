@@ -1560,10 +1560,15 @@ _ROLE_GRADE_WEIGHTS = {
         "Passing Safety": 0.05,
     },
     # --- CAM roles ---
-    "Classic 10/Advanced Playmaker": {
-        "Attacking": 0.15, "Defending": 0.03, "Passing": 0.30,
-        "Dribbling & Carrying": 0.15, "Ball Progression": 0.20,
-        "Passing Safety": 0.10,
+    "Classic 10": {
+        "Attacking": 0.12, "Defending": 0.03, "Passing": 0.33,
+        "Dribbling & Carrying": 0.15, "Ball Progression": 0.22,
+        "Passing Safety": 0.15,
+    },
+    "Advanced Playmaker": {
+        "Attacking": 0.28, "Defending": 0.03, "Passing": 0.22,
+        "Dribbling & Carrying": 0.22, "Ball Progression": 0.18,
+        "Passing Safety": 0.07,
     },
     "Shadow Striker": {
         "Attacking": 0.35, "Defending": 0.05, "Passing": 0.15,
@@ -1724,12 +1729,19 @@ _ROLE_KPI_PROFILES = {
         "Ball Security": (0.10, ["Retention %", "Dribble %"]),
     },
     # --- CAM roles ---
-    "Classic 10/Advanced Playmaker": {
-        "Creativity":      (0.30, ["Total Big Chances Created", "Key Passes (Attempt Assists)", "Goal Assists", "Total Touches In Opposition Box"]),
-        "Passing Quality": (0.25, ["Pass %", "Forward Passes", "Through balls"]),
-        "Progression":     (0.20, ["Progressive Carries", "Final Third Touches"]),
+    "Classic 10": {
+        "Creativity":      (0.35, ["Total Big Chances Created", "Key Passes (Attempt Assists)", "Goal Assists", "Through balls"]),
+        "Passing Quality": (0.25, ["Pass %", "Forward Passes", "Final Third Touches"]),
+        "Progression":     (0.20, ["Progressive Carries", "Through balls"]),
         "Ball Security":   (0.15, ["Retention %", "Pass %", "Dribble %"]),
-        "Finishing":       (0.10, ["Non-Penalty Goals", "Shots On Target ( inc goals )"]),
+        "Finishing":       (0.05, ["Non-Penalty Goals", "Shots On Target ( inc goals )"]),
+    },
+    "Advanced Playmaker": {
+        "Finishing":    (0.30, ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )", "Total Big Chances Scored"]),
+        "Creativity":   (0.28, ["Key Passes (Attempt Assists)", "Goal Assists", "Total Big Chances Created", "Through balls"]),
+        "Dribbling":    (0.22, ["Successful Dribbles", "Dribble %", "Progressive Carries"]),
+        "Ball Security":(0.15, ["Retention %", "Pass %", "Dribble %"]),
+        "Progression":  (0.05, ["Final Third Touches", "Total Touches In Opposition Box"]),
     },
     "Shadow Striker": {
         "Finishing":     (0.35, ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )", "Total Big Chances Scored"]),
@@ -1903,7 +1915,8 @@ _ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
     "Creative Winger":      ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots"]),
     "Pressing Winger":      ("Creative Output",     ["Key Passes (Attempt Assists)", "Goal Assists", "Through balls", "Total Big Chances Created"]),
     # ── CAMs ─────────────────────────────────────────────────────────────
-    "Classic 10/Advanced Playmaker": ("Goal Scoring",      ["Goals", "Non-Penalty Goals", "Total Shots", "Shots On Target ( inc goals )"]),
+    "Classic 10":           ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots", "Shots On Target ( inc goals )"]),
+    "Advanced Playmaker":   ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Recoveries", "Tackle Win %"]),
     "Shadow Striker":       ("Creative Playmaking", ["Goal Assists", "Key Passes (Attempt Assists)", "Through balls", "Total Big Chances Created"]),
     "Trequartista":         ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots"]),
     "Mezzala":              ("Clinical Finishing",  ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )"]),
@@ -2025,13 +2038,20 @@ CM_ROLE_PROFILES = {
 }
 
 CAM_ROLE_PROFILES = {
-    "Classic 10/Advanced Playmaker": [
+    "Classic 10": [
         "Key Passes (Attempt Assists)", "Goal Assists",
         "Total Big Chances Created",
         "Through balls",
-        "Successful Dribbles",
-        "Final Third Touches",
         "Pass %", "Forward Passes",
+        "Final Third Touches",
+    ],
+    "Advanced Playmaker": [
+        "Goals", "Non-Penalty Goals",
+        "Key Passes (Attempt Assists)", "Goal Assists",
+        "Total Shots", "Shots On Target ( inc goals )",
+        "Total Big Chances Created",
+        "Successful Dribbles",
+        "Total Touches In Opposition Box",
     ],
     "Shadow Striker": [
         "Goals", "Non-Penalty Goals", "Total Shots",
