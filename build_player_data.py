@@ -260,8 +260,17 @@ def main():
             time.sleep(0.3)  # be polite to TheSportsDB
 
         # ── Financials ─────────────────────────────────────────────────
-        needs_mv  = name not in financial_rows or not financial_rows[name].get("market_value")
-        needs_sal = name not in financial_rows or not financial_rows[name].get("salary")
+        def _is_missing(val):
+            """Return True if val is None, empty, or NaN (float or string 'nan')."""
+            if val is None:
+                return True
+            if isinstance(val, float) and pd.isna(val):
+                return True
+            s = str(val).strip()
+            return s == "" or s.lower() == "nan"
+
+        needs_mv  = name not in financial_rows or _is_missing(financial_rows[name].get("market_value"))
+        needs_sal = name not in financial_rows or _is_missing(financial_rows[name].get("salary"))
 
         mv  = financial_rows.get(name, {}).get("market_value") or None
         sal = financial_rows.get(name, {}).get("salary") or None
