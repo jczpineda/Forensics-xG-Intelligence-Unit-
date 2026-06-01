@@ -2577,7 +2577,7 @@ def _fmt_euros(val):
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, _role_schema=""):
+def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_schema=""):
     """Pre-compute grades and roles for every player (vectorized, cached 24 h).
 
     *grade_df* is the DataFrame used for percentile grading (Total or Per 90).
@@ -2875,7 +2875,7 @@ def render_player_lab(data):
 
     # Build / retrieve the grade table
     with st.spinner("Computing player grades…"):
-        lab_df = _build_player_lab_table(grade_src, df_total, mode_label=lab_stat_mode, pot_years=pot_years, _role_schema=_ROLE_SCHEMA_VERSION)
+        lab_df = _build_player_lab_table(grade_src, df_total, mode_label=lab_stat_mode, pot_years=pot_years, role_schema=_ROLE_SCHEMA_VERSION)
 
     # ── Filters ──────────────────────────────────────────────────────────
     f1, f2, f3, f4 = st.columns(4)
