@@ -448,6 +448,15 @@ def load_data():
     # Estimated 90s
     _derived["estimated_90s"] = (combined["Time Played"].fillna(0) / 90).round(2)
 
+    # GK rate metrics — derived as rates so they are NOT re-divided in per-90 mode
+    if "Saves Made" in combined.columns:
+        _e90 = (combined["Time Played"].fillna(0) / 90).replace(0, np.nan)
+        _derived["Saves/90"] = (combined["Saves Made"].fillna(0) / _e90).round(2)
+    if "Clean Sheets" in combined.columns and "Appearances" in combined.columns:
+        _derived["Clean Sheet %"] = (
+            combined["Clean Sheets"].fillna(0) / combined["Appearances"].replace(0, np.nan) * 100
+        ).round(1)
+
     # Assign all derived columns at once (avoids DataFrame fragmentation)
     if _derived:
         combined = pd.concat([combined, pd.DataFrame(_derived, index=combined.index)], axis=1)
@@ -510,7 +519,9 @@ def load_data():
                                         "Pass %", "Save %", "Launch %",
                                         "Ground Duel %", "Duel %", "Cross %",
                                         "Long Pass %", "Short Pass %",
-                                        "Retention %", "Own Half Pass %"}:
+                                        "Retention %", "Own Half Pass %",
+                                        # GK rate metrics already normalised — do not re-divide
+                                        "Saves/90", "Clean Sheet %"}:
             continue
         if per90[col].dtype in ("float64", "int64", "float32", "int32"):
             per90[col] = np.where(
@@ -532,6 +543,8 @@ def load_data():
         "Ground Duel %", "Duel %", "Cross %",
         "Long Pass %", "Short Pass %",
         "Retention %", "Own Half Pass %",
+        # GK rate metrics already normalised — do not re-divide
+        "Saves/90", "Clean Sheet %",
     }
     if "Total Passes" in combined.columns:
         team_poss = {}
@@ -996,11 +1009,12 @@ PIZZA_METRICS = {
 
 GK_PIZZA_METRICS = {
     "Shot-Stopping": [
-        ("Saves", "Saves Made"),
+        ("Saves/90", "Saves/90"),          # rate — fair for GKs on dominant teams
         ("Save %", "Save %"),
         ("PSxG+/-", "PSxG+/-"),
         ("Goals Prevented", "Goals Prevented"),
         ("Big Chances Saved", "Total Big Chances Saved"),
+        ("Clean Sheet %", "Clean Sheet %"),
     ],
     "Distribution": [
         ("GK Distribution", "GK Successful Distribution"),
@@ -1666,7 +1680,7 @@ _KPI_INVERTED_CATS = set()
 
 # Bump this string whenever role names/definitions change to invalidate the
 # 24-hour Player Lab cache immediately on redeployment.
-_ROLE_SCHEMA_VERSION = "v8"  # CB: Duelist+Stopper merged; Inverted Winger renamed
+_ROLE_SCHEMA_VERSION = "v9"  # GK: Saves/90 + Clean Sheet % replace raw Saves Made
 
 _ROLE_KPI_PROFILES = {
     # --- Striker roles ---
@@ -1871,10 +1885,11 @@ _ROLE_KPI_PROFILES = {
 }
 
 GK_ATTRIBUTE_GRADE_CATEGORIES = {
-    "Shot-Stopping": ["Saves Made", "Save %",
+    "Shot-Stopping": ["Saves/90", "Save %",
                       "PSxG+/-", "PSxG/Shot",
                       "Goals Prevented",
                       "Total Big Chances Saved",
+                      "Clean Sheet %",
                       "Penalties Saved"],
     "Command": ["Catches", "Punches", "Aerial Duels won",
                 "Aerial Duels", "Aerial Win %"],
