@@ -95,9 +95,10 @@ def load_players():
 
 # ── Photo fetching via TheSportsDB ────────────────────────────────────────────
 
-def fetch_photo(player_name, team=None):
+def _tsdb_search(name, team=None):
+    """Search TheSportsDB for a player photo. Returns URL or None."""
     try:
-        q = urllib.parse.quote(player_name)
+        q = urllib.parse.quote(name)
         url = f"https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p={q}"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=8) as resp:
@@ -126,6 +127,38 @@ def fetch_photo(player_name, team=None):
     except Exception:
         pass
     return None
+
+
+def _expand_name(short_name):
+    """Try to resolve an abbreviated name (e.g. 'J. Garner') to a full name
+    using the Capology player index (already downloaded during financials step).
+    Falls back to short_name if nothing found."""
+    global _CAPOLOGY_INDEX
+    if _CAPOLOGY_INDEX is None:
+        return short_name
+    target = _normalize(short_name)
+    parts = target.split()
+    if len(parts) < 2:
+        return short_name
+    initial = parts[0].rstrip(".")
+    surname = parts[-1]
+    for e in _CAPOLOGY_INDEX:
+        nm = _normalize(e.get("name", "")).split()
+        if len(nm) >= 2 and nm[-1] == surname and nm[0].startswith(initial):
+            return e.get("name") or short_name
+    return short_name
+
+
+def fetch_photo(player_name, team=None):
+    # 1. Try abbreviated name (e.g. 'J. Garner')
+    photo = _tsdb_search(player_name, team)
+    if photo:
+        return photo
+    # 2. Try expanded full name via Capology index (e.g. 'James Garner')
+    full = _expand_name(player_name)
+    if full != player_name:
+        photo = _tsdb_search(full, team)
+    return photo
 
 
 # ── Market value fetching via Transfermarkt ───────────────────────────────────
@@ -234,7 +267,15 @@ def fetch_capology(player_name, team=None):
 # ── Main build ────────────────────────────────────────────────────────────────
 
 def main():
+    global _CAPOLOGY_INDEX
     players = load_players()
+
+    # Pre-load Capology index so _expand_name() can resolve abbreviated names
+    # before the photo loop runs (e.g. 'J. Garner' → 'James Garner')
+    if _CAPOLOGY_INDEX is None:
+        print("Pre-loading Capology index for name expansion…")
+        _CAPOLOGY_INDEX = _fetch_capology_index()
+        print(f"  Capology index: {len(_CAPOLOGY_INDEX)} entries")
 
     # Load existing data so we don't re-fetch
     existing_photos     = _load_existing(PHOTOS_CSV, "short_name")
