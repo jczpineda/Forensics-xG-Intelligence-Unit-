@@ -2322,7 +2322,7 @@ def _grade_html(grade, label, pct=None):
 
 
 @st.cache_data(ttl=86400, show_spinner="Classifying roles…")
-def _classify_position_roles(df_total, position):
+def _classify_position_roles(df_total, position, role_schema=""):
     """Return a Series mapping df_total index → role for all players at *position*.
     Vectorized: pre-computes percentile ranks once, then averages per role profile."""
     profiles = POSITION_ROLE_PROFILES.get(position)
@@ -2402,7 +2402,7 @@ def _compute_attribute_grades(row_data, position, df_total, league=None, role=No
     # so we skip the role filter to avoid compressing the percentile range.
     if role and not kpi:
         ref = df_role_ref if df_role_ref is not None else df_total
-        role_series = _classify_position_roles(ref, position)
+        role_series = _classify_position_roles(ref, position, role_schema=_ROLE_SCHEMA_VERSION)
         matching_names = ref.loc[
             ref.index.intersection(role_series[role_series == role].index), "nombre"
         ]
@@ -2653,7 +2653,7 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
     role_map = {}
     for position in role_df["posicion"].unique():
         if position in POSITION_ROLE_PROFILES:
-            roles = _classify_position_roles(role_df, position)
+            roles = _classify_position_roles(role_df, position, role_schema=_ROLE_SCHEMA_VERSION)
             for r_idx, r_role in roles.items():
                 name = role_df.at[r_idx, "nombre"]
                 role_map[name] = r_role
