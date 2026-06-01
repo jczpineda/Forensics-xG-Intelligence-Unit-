@@ -1560,7 +1560,7 @@ _ROLE_GRADE_WEIGHTS = {
         "Passing Safety": 0.05,
     },
     # --- CAM roles ---
-    "Classic 10": {
+    "Classic 10/Advanced Playmaker": {
         "Attacking": 0.15, "Defending": 0.03, "Passing": 0.30,
         "Dribbling & Carrying": 0.15, "Ball Progression": 0.20,
         "Passing Safety": 0.10,
@@ -1570,15 +1570,15 @@ _ROLE_GRADE_WEIGHTS = {
         "Dribbling & Carrying": 0.15, "Ball Progression": 0.15,
         "Passing Safety": 0.05,
     },
-    "Creative Playmaker": {
-        "Attacking": 0.10, "Defending": 0.03, "Passing": 0.35,
-        "Dribbling & Carrying": 0.15, "Ball Progression": 0.20,
-        "Passing Safety": 0.10,
+    "Trequartista": {
+        "Attacking": 0.20, "Defending": 0.02, "Passing": 0.20,
+        "Dribbling & Carrying": 0.25, "Ball Progression": 0.20,
+        "Passing Safety": 0.08,
     },
-    "Pressing 10": {
-        "Attacking": 0.20, "Defending": 0.15, "Passing": 0.20,
-        "Dribbling & Carrying": 0.10, "Ball Progression": 0.15,
-        "Passing Safety": 0.10,
+    "Mezzala": {
+        "Attacking": 0.25, "Defending": 0.10, "Passing": 0.20,
+        "Dribbling & Carrying": 0.20, "Ball Progression": 0.20,
+        "Passing Safety": 0.05,
     },
     # --- Central Midfield roles ---
     "Defensive Midfielder": {
@@ -1595,11 +1595,6 @@ _ROLE_GRADE_WEIGHTS = {
         "Attacking": 0.05, "Defending": 0.10, "Passing": 0.35,
         "Dribbling & Carrying": 0.05, "Ball Progression": 0.20,
         "Passing Safety": 0.20,
-    },
-    "Attacking Midfielder": {
-        "Attacking": 0.25, "Defending": 0.05, "Passing": 0.25,
-        "Dribbling & Carrying": 0.20, "Ball Progression": 0.15,
-        "Passing Safety": 0.05,
     },
     "Central Midfielder": {
         "Attacking": 0.12, "Defending": 0.18, "Passing": 0.20,
@@ -1729,7 +1724,7 @@ _ROLE_KPI_PROFILES = {
         "Ball Security": (0.10, ["Retention %", "Dribble %"]),
     },
     # --- CAM roles ---
-    "Classic 10": {
+    "Classic 10/Advanced Playmaker": {
         "Creativity":      (0.30, ["Total Big Chances Created", "Key Passes (Attempt Assists)", "Goal Assists", "Total Touches In Opposition Box"]),
         "Passing Quality": (0.25, ["Pass %", "Forward Passes", "Through balls"]),
         "Progression":     (0.20, ["Progressive Carries", "Final Third Touches"]),
@@ -1743,19 +1738,19 @@ _ROLE_KPI_PROFILES = {
         "Creativity":    (0.15, ["Key Passes (Attempt Assists)", "Goal Assists"]),
         "Ball Security": (0.05, ["Retention %", "Dribble %"]),
     },
-    "Creative Playmaker": {
-        "Creativity":      (0.30, ["Key Passes (Attempt Assists)", "Goal Assists", "Through balls", "Total Big Chances Created"]),
-        "Passing Quality": (0.25, ["Pass %", "Total Passes", "Forward Passes"]),
-        "Progression":     (0.20, ["Progressive Carries", "Final Third Touches"]),
-        "Ball Security":   (0.15, ["Retention %", "Pass %", "Dribble %"]),
-        "Finishing":       (0.10, ["Goals", "Shots On Target ( inc goals )"]),
+    "Trequartista": {
+        "Creativity":      (0.30, ["Key Passes (Attempt Assists)", "Through balls", "Total Big Chances Created", "Goal Assists"]),
+        "Dribbling":       (0.25, ["Successful Dribbles", "Dribble %", "Progressive Carries"]),
+        "Progression":     (0.20, ["Final Third Touches", "Forward Passes"]),
+        "Ball Security":   (0.15, ["Retention %", "Dribble %"]),
+        "Finishing":       (0.10, ["Goals", "Non-Penalty Goals"]),
     },
-    "Pressing 10": {
-        "Pressing":      (0.25, ["Recoveries", "Tackles Won", "Interceptions"]),
-        "Creativity":    (0.25, ["Key Passes (Attempt Assists)", "Goal Assists", "Through balls"]),
-        "Finishing":     (0.25, ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )"]),
-        "Duels":         (0.15, ["Ground Duels won", "Ground Duel %", "Duels won"]),
-        "Ball Security": (0.10, ["Retention %", "Pass %"]),
+    "Mezzala": {
+        "Progression":      (0.30, ["Progressive Carries", "Forward Passes", "Final Third Touches"]),
+        "Attacking Output": (0.25, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)"]),
+        "Dribbling":        (0.20, ["Successful Dribbles", "Dribble %"]),
+        "Defensive Work":   (0.15, ["Tackles Won", "Interceptions", "Recoveries"]),
+        "Ball Security":    (0.10, ["Retention %", "Pass %"]),
     },
     # --- Central Midfield roles ---
     "Defensive Midfielder": {
@@ -1778,13 +1773,6 @@ _ROLE_KPI_PROFILES = {
         "Ball Security":       (0.20, ["Retention %", "Pass %", "Own Half Pass %"]),
         "Defensive Awareness": (0.15, ["Interceptions", "Recoveries"]),
         "Creativity":          (0.10, ["Key Passes (Attempt Assists)", "Total Big Chances Created"]),
-    },
-    "Attacking Midfielder": {
-        "Attacking Output": (0.30, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Total Big Chances Created"]),
-        "Carrying":         (0.25, ["Progressive Carries", "Successful Dribbles", "Dribble %"]),
-        "Progression":      (0.20, ["Forward Passes", "Through balls", "Final Third Touches"]),
-        "Passing Quality":  (0.15, ["Pass %", "Short Pass %"]),
-        "Ball Security":    (0.10, ["Retention %", "Dribble %"]),
     },
     "Central Midfielder": {
         "Passing Quality":  (0.25, ["Pass %", "Total Passes", "Forward Passes"]),
@@ -1894,10 +1882,8 @@ _ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
     "Defensive Midfielder":  ("Attacking Output",    ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Shots On Target ( inc goals )"]),
     "Box-to-Box Midfielder": ("Elite Finishing",     ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
     "Deep-Lying Playmaker":  ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )", "Total Touches In Opposition Box"]),
-    "Attacking Midfielder":  ("Defensive Solidity",  ["Total Tackles", "Interceptions", "Recoveries", "Tackle Win %"]),
     "Central Midfielder":    ("Elite Finishing",     ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
-    "Ball Winning Midfielder": ("Attacking Output",   ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Shots On Target ( inc goals )"]),
-    # ── Centre-Backs ─────────────────────────────────────────────────────
+    "Ball Winning Midfielder": ("Attacking Output",  ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Shots On Target ( inc goals )"]),
     "Ball Playing":          ("Defensive Dominance", ["Total Tackles", "Interceptions", "Aerial Duels won", "Aerial Win %"]),
     "Duelist":               ("Ball Distribution",   ["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
     "Aerial":                ("Ball-Playing Ability", ["Total Passes", "Forward Passes", "Progressive Carries", "Pass %"]),
@@ -1917,11 +1903,11 @@ _ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
     "Creative Winger":      ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots"]),
     "Pressing Winger":      ("Creative Output",     ["Key Passes (Attempt Assists)", "Goal Assists", "Through balls", "Total Big Chances Created"]),
     # ── CAMs ─────────────────────────────────────────────────────────────
-    "Classic 10":           ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots", "Shots On Target ( inc goals )"]),
+    "Classic 10/Advanced Playmaker": ("Goal Scoring",      ["Goals", "Non-Penalty Goals", "Total Shots", "Shots On Target ( inc goals )"]),
     "Shadow Striker":       ("Creative Playmaking", ["Goal Assists", "Key Passes (Attempt Assists)", "Through balls", "Total Big Chances Created"]),
-    "Creative Playmaker":   ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Total Shots"]),
-    "Pressing 10":          ("Clinical Finishing",  ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )"]),
-    # ── Goalkeepers ──────────────────────────────────────────────────────
+    "Trequartista":         ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots"]),
+    "Mezzala":              ("Clinical Finishing",  ["Goals", "Non-Penalty Goals", "Shots On Target ( inc goals )"]),
+    # ── Goalkeepers ─────────────────────────────────────────────────────
     "Shot-Stopper":         ("Distribution Quality",    ["GK Successful Distribution", "Successful Launches", "Launch %"]),
     "Sweeper Keeper":       ("Shot-Stopping Ability",   ["Saves Made", "Save %", "Goals Prevented"]),
     "Ball-Playing Goalkeeper": ("Shot-Stopping Ability",["Saves Made", "Save %", "Goals Prevented", "Total Big Chances Saved"]),
@@ -2020,14 +2006,6 @@ CM_ROLE_PROFILES = {
         "Forward Passes",
         "Through balls", "Final Third Touches",
     ],
-    "Attacking Midfielder": [
-        "Goals", "Non-Penalty Goals", "Goal Assists",
-        "Key Passes (Attempt Assists)", "Total Big Chances Created",
-        "Progressive Carries", "Carries",
-        "Successful Dribbles",
-        "Total Shots", "Shots On Target ( inc goals )",
-        "Total Touches In Opposition Box",
-    ],
     "Central Midfielder": [
         "Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
         "Pass %", "Forward Passes",
@@ -2047,12 +2025,13 @@ CM_ROLE_PROFILES = {
 }
 
 CAM_ROLE_PROFILES = {
-    "Classic 10": [
+    "Classic 10/Advanced Playmaker": [
         "Key Passes (Attempt Assists)", "Goal Assists",
         "Total Big Chances Created",
         "Through balls",
         "Successful Dribbles",
         "Final Third Touches",
+        "Pass %", "Forward Passes",
     ],
     "Shadow Striker": [
         "Goals", "Non-Penalty Goals", "Total Shots",
@@ -2061,17 +2040,19 @@ CAM_ROLE_PROFILES = {
         "Key Passes (Attempt Assists)",
         "Total Big Chances Scored",
     ],
-    "Creative Playmaker": [
-        "Successful Crosses & Corners", "Successful Crosses open play",
-        "Key Passes (Attempt Assists)", "Goal Assists",
-        "Total Big Chances Created",
-        "Forward Passes", "Through balls",
+    "Trequartista": [
+        "Successful Dribbles", "Dribble %",
+        "Key Passes (Attempt Assists)", "Through balls",
+        "Total Big Chances Created", "Goal Assists",
+        "Progressive Carries", "Final Third Touches",
     ],
-    "Pressing 10": [
-        "Recoveries",
-        "Total Tackles", "Tackles Won",
-        "Goals", "Key Passes (Attempt Assists)", "Goal Assists",
-        "Ground Duels", "Ground Duels won",
+    "Mezzala": [
+        "Progressive Carries", "Carries",
+        "Goals", "Non-Penalty Goals", "Goal Assists",
+        "Successful Dribbles",
+        "Key Passes (Attempt Assists)",
+        "Total Touches In Opposition Box",
+        "Total Tackles", "Recoveries",
     ],
 }
 
