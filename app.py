@@ -54,8 +54,16 @@ _FINANCIALS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Play
 _PHOTOS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_photos.csv")
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def _load_photos_csv():
+def _csv_mtime(path):
+    """Return CSV file modification time as int (for cache-busting)."""
+    try:
+        return int(os.path.getmtime(path))
+    except OSError:
+        return 0
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_photos_csv(_bust=0):
     """Load manual photo URL overrides from player_photos.csv (if it exists).
     CSV format: short_name, photo_url
     short_name must match the Opta 'nombre' field exactly (e.g. 'E. Haaland')."""
@@ -71,9 +79,9 @@ def _load_photos_csv():
     return lookup
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def _load_financials_csv():
-    """Load pre-fetched market values and salaries from CSV (if it exists)."""
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_financials_csv(_bust=0):
+    """Load pre-fetched market values and salaries from CSV (if it exists.)."""
     if not os.path.exists(_FINANCIALS_CSV):
         return {}
     df = pd.read_csv(_FINANCIALS_CSV, encoding="utf-8-sig")
@@ -755,7 +763,7 @@ def chart_pie(data, names, values, title, height=500):
 def _fetch_player_photo(player_name, team=None):
     """Return a player photo URL, preferring manual CSV overrides over TheSportsDB."""
     # 1. Check manual override CSV first
-    _photo_overrides = _load_photos_csv()
+    _photo_overrides = _load_photos_csv(_bust=_csv_mtime(_PHOTOS_CSV))
     if player_name in _photo_overrides:
         return _photo_overrides[player_name]
     # 2. Fall back to TheSportsDB API
@@ -2553,7 +2561,7 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
     *grade_df* is the DataFrame used for percentile grading (Total or Per 90).
     *role_df*  is always the Total DataFrame (role classification uses season totals).
     """
-    financials = _load_financials_csv()
+    financials = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV))
     gdf = grade_df.copy()
 
     # ── Vectorized percentile ranks per position ────────────────────────
@@ -3127,7 +3135,7 @@ def render_profile(data):
 
     # ── Market Value & Salary ────────────────────────────────────────────
     _player_team = row.get("equipo")
-    _fin = _load_financials_csv().get(row["nombre"])
+    _fin = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV)).get(row["nombre"])
     if _fin:
         market_val = _fin["market_value"]
         salary_val = _fin["salary"]
