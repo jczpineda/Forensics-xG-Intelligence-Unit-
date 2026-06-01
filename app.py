@@ -2705,6 +2705,11 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
         out[f"{attr} Grade (Europe)"] = _vec_grade(ov_vals)
         out[f"{attr} %ile (Europe)"] = ov_vals.round(1)
 
+    # ── KPI grade columns (role-specific, populated below) ───────────────
+    _all_kpi_cat_names = sorted({cat for kp in _ROLE_KPI_PROFILES.values() for cat in kp})
+    for _kcat in _all_kpi_cat_names:
+        out[f"{_kcat} %ile"] = np.nan
+
     # ── Overall grade (vectorized by role group) ─────────────────────────
     out["Overall %ile"] = 0.0
     out["League %ile"] = 0.0
@@ -2720,6 +2725,7 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
             ov_wt = pd.Series(0.0, index=g_idx)
             lg_wt = pd.Series(0.0, index=g_idx)
             for cat_name, (weight, metrics) in kpi.items():
+                cat_lg_vals = pd.Series(np.nan, index=g_idx)
                 # Europe-wide
                 for pos in group["posicion"].unique():
                     pos_mask = group["posicion"] == pos
@@ -2749,6 +2755,9 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
                                         cp = 100 - cp
                                     lg_sum.loc[lg_idx] += cp * weight
                                     lg_wt.loc[lg_idx] += weight
+                                    cat_lg_vals.loc[lg_idx] = cp.round(1)
+                # Store per-category league-scoped percentile
+                out.loc[g_idx, f"{cat_name} %ile"] = cat_lg_vals.values
             out.loc[g_idx, "Overall %ile"] = (ov_sum / ov_wt.replace(0, 1)).round(1)
             out.loc[g_idx, "League %ile"] = (lg_sum / lg_wt.replace(0, 1)).round(1)
         else:
@@ -2790,6 +2799,11 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
 
     out["Overall Grade"] = _vec_grade(out["Overall %ile"])
     out["League Grade"] = _vec_grade(out["League %ile"])
+
+    # Convert KPI %ile columns → grade strings
+    for _kcat in _all_kpi_cat_names:
+        _kpct_col = f"{_kcat} %ile"
+        out[f"{_kcat} Grade"] = _vec_grade(out[_kpct_col])
 
     # ── Potential Grade (age-based projection) ───────────────────────────
     _age_col = next((c for c in ("edad", "age", "Age") if c in gdf.columns), None)
@@ -2949,10 +2963,21 @@ def render_player_lab(data):
 
     st.markdown(f"**{len(filtered)}** players match your filters")
 
-    # Show league-scoped attribute grades in the table (Europe-wide variants hidden by default)
-    _attr_display = [c for c in filtered.columns
-                     if c.endswith(" Grade") and c not in ("Overall Grade", "League Grade", "Potential Grade")
-                     and not c.endswith(" Grade (Europe)")]
+    # Determine which grade columns to show: role-specific KPI when a single role
+    # is filtered, otherwise generic attribute grades (Attacking, Defending, etc.)
+    _generic_attr_cats = set(ATTRIBUTE_GRADE_CATEGORIES.keys()) | set(GK_ATTRIBUTE_GRADE_CATEGORIES.keys())
+    _generic_attr_display = [c for c in filtered.columns
+                             if c.endswith(" Grade")
+                             and c not in ("Overall Grade", "League Grade", "Potential Grade")
+                             and not c.endswith(" Grade (Europe)")
+                             and c.replace(" Grade", "") in _generic_attr_cats]
+    _kpi_attr_display = []
+    if sel_roles and len(sel_roles) == 1:
+        _single_role_kpi = _ROLE_KPI_PROFILES.get(sel_roles[0])
+        if _single_role_kpi:
+            _kpi_attr_display = [f"{cat} Grade" for cat in _single_role_kpi.keys()
+                                  if f"{cat} Grade" in filtered.columns]
+    _attr_display = _kpi_attr_display if _kpi_attr_display else _generic_attr_display
     # When a specific league is selected, hide the Overall columns
     _show_potential = grade_basis == "Potential Grade"
     if sel_leagues:
