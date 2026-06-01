@@ -2717,6 +2717,14 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3):
         "Salary": _sal_series.values,
     }, index=gdf.index)
 
+    # Squad Role based on minutes played
+    _mins = gdf["Time Played"].fillna(0) if "Time Played" in gdf.columns else gdf["estimated_90s"].fillna(0) * 90
+    out["Squad Role"] = pd.cut(
+        _mins,
+        bins=[-1, 899, 2249, float("inf")],
+        labels=["Depth", "Rotation", "Starter"],
+    ).astype(str)
+
     # Attribute grade columns (vectorized)
     _outfield_attrs = list(ATTRIBUTE_GRADE_CATEGORIES.keys())
     _gk_attrs = list(GK_ATTRIBUTE_GRADE_CATEGORIES.keys())
@@ -2883,7 +2891,7 @@ def render_player_lab(data):
     grade_df = _select_df(data, lab_stat_mode)
 
     if lab_stat_mode == "Per 90" and not grade_df.empty:
-        _MIN_90S_P90 = 10  # 900 min threshold — removes rotation/sub noise
+        _MIN_90S_P90 = 6  # ~540 min threshold
         _has_mins = grade_df["estimated_90s"].fillna(0) >= _MIN_90S_P90
         grade_src = grade_df[_has_mins].copy()
     else:
@@ -2898,7 +2906,7 @@ def render_player_lab(data):
         lab_df = _build_player_lab_table(grade_src, df_total, mode_label=lab_stat_mode, pot_years=pot_years)
 
     # ── Filters ──────────────────────────────────────────────────────────
-    f1, f2, f3 = st.columns(3)
+    f1, f2, f3, f4 = st.columns(4)
     with f1:
         sel_leagues = st.multiselect("League", sorted(lab_df["League"].unique()),
                                      default=[], key="lab_leagues")
@@ -2913,6 +2921,10 @@ def render_player_lab(data):
             role_pool = lab_df
         role_options = sorted(role_pool["Role"].unique())
         sel_roles = st.multiselect("Role", role_options, default=[], key="lab_roles")
+    with f4:
+        sel_squad_roles = st.multiselect("Squad Role", ["Starter", "Rotation", "Depth"],
+                                         default=[], key="lab_squad_roles",
+                                         help="Starter ≥ 2250 min · Rotation 900–2249 min · Depth < 900 min")
 
     # Grade range selector
     grade_col, grade_type_col = st.columns([3, 1])
@@ -2951,6 +2963,8 @@ def render_player_lab(data):
         filtered = filtered[filtered["Position"].isin(sel_positions)]
     if sel_roles:
         filtered = filtered[filtered["Role"].isin(sel_roles)]
+    if sel_squad_roles:
+        filtered = filtered[filtered["Squad Role"].isin(sel_squad_roles)]
 
     # Grade filter
     filtered["_grade_idx"] = filtered[grade_basis].map(_GRADE_TO_IDX)
@@ -3010,13 +3024,13 @@ def render_player_lab(data):
     # When a specific league is selected, hide the Overall columns
     _show_potential = grade_basis == "Potential Grade"
     if sel_leagues:
-        display_cols = ["Player", "Team", "League", "Pos", "Role",
+        display_cols = ["Player", "Team", "League", "Pos", "Role", "Squad Role",
                         "League Grade", "League %ile"]
         if _show_potential:
             display_cols += ["Potential Grade", "Potential %ile"]
         display_cols += _attr_display + ["Market Value", "Salary"]
     else:
-        display_cols = ["Player", "Team", "League", "Pos", "Role",
+        display_cols = ["Player", "Team", "League", "Pos", "Role", "Squad Role",
                         "Overall Grade", "Overall %ile",
                         "League Grade", "League %ile"]
         if _show_potential:
@@ -3090,7 +3104,7 @@ def render_profile(data):
     if use_per90 and not _active_df.empty:
         # Filter out low-minutes players whose inflated per-90 rates
         # would skew the percentile rankings for regular starters.
-        _MIN_90S_P90 = 10  # 900 min threshold — removes rotation/sub noise
+        _MIN_90S_P90 = 6  # ~540 min threshold
         _is_sel = _active_df["nombre"] == player_sel
         _has_mins = _active_df["estimated_90s"].fillna(0) >= _MIN_90S_P90
         p90_filtered = _active_df[_is_sel | _has_mins]
