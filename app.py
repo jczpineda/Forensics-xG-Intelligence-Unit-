@@ -1821,6 +1821,20 @@ _ROLE_KPI_PROFILES = {
         "Distribution":       (0.10, ["Pass %", "Successful Long Passes"]),
         "Ball Security":      (0.10, ["Retention %", "Pass %"]),
     },
+    "Libero": {
+        "Ball Progression":   (0.30, ["Progressive Carries", "Through balls", "Forward Passes"]),
+        "Passing Quality":    (0.25, ["Pass %", "Total Successful Passes ( Excl Crosses & Corners ) ", "Short Pass %"]),
+        "Defensive Solidity": (0.20, ["Tackles Won", "Interceptions", "Total Clearances"]),
+        "Dribbling":          (0.15, ["Successful Dribbles", "Dribble %", "Progressive Carries"]),
+        "Ball Security":      (0.10, ["Retention %", "Own Half Pass %"]),
+    },
+    "Stopper": {
+        "Aerial":             (0.30, ["Aerial Duels won", "Aerial Win %"]),
+        "Tackling":           (0.25, ["Tackles Won", "Tackle Win %", "Total Tackles", "Interceptions"]),
+        "Duels":              (0.25, ["Ground Duels won", "Ground Duel %", "Duels won", "Duel %"]),
+        "Defensive Solidity": (0.15, ["Total Clearances", "Blocked Shots", "Blocks", "Recoveries"]),
+        "Ball Security":      (0.05, ["Retention %", "Pass %"]),
+    },
     # --- Full-Back roles ---
     "Inverted": {
         "Passing Quality": (0.30, ["Pass %", "Forward Passes", "Short Pass %", "Through balls"]),
@@ -1899,6 +1913,8 @@ _ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
     "Ball Playing":          ("Defensive Dominance", ["Total Tackles", "Interceptions", "Aerial Duels won", "Aerial Win %"]),
     "Duelist":               ("Ball Distribution",   ["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
     "Aerial":                ("Ball-Playing Ability", ["Total Passes", "Forward Passes", "Progressive Carries", "Pass %"]),
+    "Libero":               ("Defensive Dominance",  ["Total Tackles", "Interceptions", "Aerial Duels won", "Total Clearances"]),
+    "Stopper":              ("Ball-Playing Ability",  ["Total Passes", "Forward Passes", "Progressive Carries", "Pass %"]),
     # ── Full-Backs ───────────────────────────────────────────────────────
     "Inverted":              ("Attacking Threat",    ["Goal Assists", "Goals", "Key Passes (Attempt Assists)", "Total Shots"]),
     "Defensive":             ("Attacking Threat",    ["Goal Assists", "Goals", "Successful Crosses & Corners"]),
@@ -2095,6 +2111,19 @@ CENTRE_BACK_ROLE_PROFILES = {
         "Aerial Duels", "Aerial Duels won", "Aerial Win %",
         "Total Clearances", "Headed Goals",
         "Duels", "Duels won",
+    ],
+    "Libero": [
+        "Progressive Carries", "Carries", "Successful Dribbles",
+        "Total Successful Passes ( Excl Crosses & Corners ) ",
+        "Pass %", "Through balls", "Forward Passes",
+        "Short Pass %",
+    ],
+    "Stopper": [
+        "Total Tackles", "Tackles Won", "Tackle Win %",
+        "Aerial Duels", "Aerial Duels won", "Aerial Win %",
+        "Ground Duels", "Ground Duels won", "Ground Duel %",
+        "Total Clearances", "Blocked Shots", "Blocks",
+        "Recoveries", "Duels", "Duels won",
     ],
 }
 
