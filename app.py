@@ -2891,7 +2891,7 @@ def render_player_lab(data):
     grade_df = _select_df(data, lab_stat_mode)
 
     if lab_stat_mode == "Per 90" and not grade_df.empty:
-        _MIN_90S_P90 = 6  # ~540 min threshold
+        _MIN_90S_P90 = 10  # 900 min threshold
         _has_mins = grade_df["estimated_90s"].fillna(0) >= _MIN_90S_P90
         grade_src = grade_df[_has_mins].copy()
     else:
@@ -3104,7 +3104,7 @@ def render_profile(data):
     if use_per90 and not _active_df.empty:
         # Filter out low-minutes players whose inflated per-90 rates
         # would skew the percentile rankings for regular starters.
-        _MIN_90S_P90 = 6  # ~540 min threshold
+        _MIN_90S_P90 = 10  # 900 min threshold
         _is_sel = _active_df["nombre"] == player_sel
         _has_mins = _active_df["estimated_90s"].fillna(0) >= _MIN_90S_P90
         p90_filtered = _active_df[_is_sel | _has_mins]
@@ -3164,6 +3164,15 @@ def render_profile(data):
     _display_pct = round(min(99.9, _overall_pct + _exc_bonus_pts), 1) if _exc_bonus_pts > 0 else _overall_pct
     _display_grade = _percentile_to_grade(_display_pct) if _exc_bonus_pts > 0 else _overall_grade
 
+    # ── Squad Role (minutes-based) ────────────────────────────────────────
+    _player_mins = row.get("Time Played", 0) or 0
+    if _player_mins >= 2250:
+        _squad_role = "Starter"
+    elif _player_mins >= 900:
+        _squad_role = "Rotation"
+    else:
+        _squad_role = "Depth"
+
     # ── Build tooltip with sub-grade breakdown ────────────────────────
     _sub_lines = "&#10;".join(
         f"{attr}: {g} ({pct:.0f}th)" for attr, (g, pct) in attr_grades.items() if pct is not None
@@ -3195,7 +3204,9 @@ def render_profile(data):
         f"<div style='margin-top:2px;'><strong>{league}</strong></div>"
         f"<div style='margin-top:6px;font-size:0.92rem;'>"
         f"<strong>Position:</strong> {pos_detail} ({position}){_pos_was}"
-        f" &middot; <strong>Role:</strong> {role}</div>"
+        f" &middot; <strong>Role:</strong> {role}"
+        f" &middot; <strong>Squad Role:</strong> {_squad_role}"
+        f" &middot; <strong>Minutes:</strong> {int(_player_mins):,}</div>"
         f"</div>"
         f"<span style='display:inline-flex;flex-direction:column;align-items:center;'>"
         f"<span style='font-size:12px;color:#aaa;display:flex;align-items:center;gap:4px;'>"
