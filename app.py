@@ -2883,7 +2883,7 @@ def render_player_lab(data):
     grade_df = _select_df(data, lab_stat_mode)
 
     if lab_stat_mode == "Per 90" and not grade_df.empty:
-        _MIN_90S_P90 = 5
+        _MIN_90S_P90 = 10  # 900 min threshold — removes rotation/sub noise
         _has_mins = grade_df["estimated_90s"].fillna(0) >= _MIN_90S_P90
         grade_src = grade_df[_has_mins].copy()
     else:
@@ -3090,7 +3090,7 @@ def render_profile(data):
     if use_per90 and not _active_df.empty:
         # Filter out low-minutes players whose inflated per-90 rates
         # would skew the percentile rankings for regular starters.
-        _MIN_90S_P90 = 5
+        _MIN_90S_P90 = 10  # 900 min threshold — removes rotation/sub noise
         _is_sel = _active_df["nombre"] == player_sel
         _has_mins = _active_df["estimated_90s"].fillna(0) >= _MIN_90S_P90
         p90_filtered = _active_df[_is_sel | _has_mins]
