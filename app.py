@@ -1539,7 +1539,7 @@ _ROLE_GRADE_WEIGHTS = {
         "Passing Safety": 0.05,
     },
     # --- Winger roles ---
-    "Inside Forward": {
+    "Inverted Winger": {
         "Attacking": 0.35, "Defending": 0.03, "Passing": 0.10,
         "Dribbling & Carrying": 0.25, "Ball Progression": 0.15,
         "Passing Safety": 0.02,
@@ -1695,7 +1695,7 @@ _ROLE_KPI_PROFILES = {
         "Ball Security": (0.10, ["Retention %", "Dribble %"]),
     },
     # --- Winger roles ---
-    "Inside Forward": {
+    "Inverted Winger": {
         "Finishing":     (0.30, ["Non-Penalty Goals", "Goals", "Shots On Target ( inc goals )"]),
         "Dribbling":     (0.25, ["Successful Dribbles", "Dribble %", "Progressive Carries"]),
         "Shot Creation": (0.20, ["Total Big Chances Created", "Key Passes (Attempt Assists)"]),
@@ -1906,7 +1906,7 @@ _ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
     "Pressing Forward":     ("Clinical Finishing",  ["Goals", "Non-Penalty Goals", "Total Big Chances Scored"]),
     "False 9":              ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots"]),
     # ── Wingers ──────────────────────────────────────────────────────────
-    "Inside Forward":       ("Defensive Contribution", ["Recoveries", "Total Tackles", "Interceptions", "Ground Duels won"]),
+    "Inverted Winger":       ("Defensive Contribution", ["Recoveries", "Total Tackles", "Interceptions", "Ground Duels won"]),
     "Classic Winger":       ("Goal Threat",         ["Goals", "Non-Penalty Goals", "Total Shots", "Shots On Target ( inc goals )"]),
     "Creative Winger":      ("Goal Scoring",        ["Goals", "Non-Penalty Goals", "Total Shots"]),
     "Pressing Winger":      ("Creative Output",     ["Key Passes (Attempt Assists)", "Goal Assists", "Through balls", "Total Big Chances Created"]),
@@ -1932,7 +1932,7 @@ _EXCEPTIONAL_BONUS_TIERS = [
 
 # ── Percentile-based role profiles (Opta metrics) ───────────────────────────
 WINGER_ROLE_PROFILES = {
-    "Inside Forward": [
+    "Inverted Winger": [
         "Goals", "Non-Penalty Goals", "Total Shots",
         "Shots On Target ( inc goals )", "Goals from Inside Box",
         "Total Touches In Opposition Box",
