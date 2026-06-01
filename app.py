@@ -1622,11 +1622,6 @@ _ROLE_GRADE_WEIGHTS = {
         "Dribbling & Carrying": 0.02, "Ball Progression": 0.05,
         "Passing Safety": 0.15,
     },
-    "Aerial": {
-        "Attacking": 0.03, "Defending": 0.50, "Passing": 0.10,
-        "Dribbling & Carrying": 0.02, "Ball Progression": 0.05,
-        "Passing Safety": 0.10,
-    },
     # --- Full-Back roles ---
     "Inverted": {
         "Attacking": 0.10, "Defending": 0.15, "Passing": 0.25,
@@ -1808,18 +1803,11 @@ _ROLE_KPI_PROFILES = {
         "Aerial":             (0.10, ["Aerial Duels won", "Aerial Win %"]),
     },
     "Duelist": {
-        "Tackling":           (0.30, ["Tackles Won", "Tackle Win %", "Total Tackles", "Interceptions"]),
+        "Tackling":           (0.25, ["Tackles Won", "Tackle Win %", "Total Tackles", "Interceptions"]),
         "Duels":              (0.25, ["Ground Duels won", "Ground Duel %", "Duels won", "Duel %"]),
+        "Aerial":             (0.20, ["Aerial Duels won", "Aerial Win %"]),
         "Defensive Solidity": (0.20, ["Total Clearances", "Blocked Shots", "Blocks", "Recoveries"]),
-        "Ball Security":      (0.15, ["Retention %", "Pass %", "Own Half Pass %"]),
-        "Distribution":       (0.10, ["Pass %", "Successful Long Passes"]),
-    },
-    "Aerial": {
-        "Aerial":             (0.35, ["Aerial Duels won", "Aerial Win %"]),
-        "Defensive Solidity": (0.25, ["Total Clearances", "Interceptions", "Blocks"]),
-        "Tackling":           (0.20, ["Tackles Won", "Tackle Win %", "Total Tackles"]),
-        "Distribution":       (0.10, ["Pass %", "Successful Long Passes"]),
-        "Ball Security":      (0.10, ["Retention %", "Pass %"]),
+        "Ball Security":      (0.10, ["Retention %", "Pass %", "Own Half Pass %"]),
     },
     "Libero": {
         "Ball Progression":   (0.30, ["Progressive Carries", "Through balls", "Forward Passes"]),
@@ -1827,13 +1815,6 @@ _ROLE_KPI_PROFILES = {
         "Defensive Solidity": (0.20, ["Tackles Won", "Interceptions", "Total Clearances"]),
         "Dribbling":          (0.15, ["Successful Dribbles", "Dribble %", "Progressive Carries"]),
         "Ball Security":      (0.10, ["Retention %", "Own Half Pass %"]),
-    },
-    "Stopper": {
-        "Aerial":             (0.30, ["Aerial Duels won", "Aerial Win %"]),
-        "Tackling":           (0.25, ["Tackles Won", "Tackle Win %", "Total Tackles", "Interceptions"]),
-        "Duels":              (0.25, ["Ground Duels won", "Ground Duel %", "Duels won", "Duel %"]),
-        "Defensive Solidity": (0.15, ["Total Clearances", "Blocked Shots", "Blocks", "Recoveries"]),
-        "Ball Security":      (0.05, ["Retention %", "Pass %"]),
     },
     # --- Full-Back roles ---
     "Inverted": {
@@ -1912,9 +1893,8 @@ _ROLE_EXCEPTIONAL_CONTRIBUTIONS = {
     "Ball Winning Midfielder": ("Attacking Output",  ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Shots On Target ( inc goals )"]),
     "Ball Playing":          ("Defensive Dominance", ["Total Tackles", "Interceptions", "Aerial Duels won", "Aerial Win %"]),
     "Duelist":               ("Ball Distribution",   ["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
-    "Aerial":                ("Ball-Playing Ability", ["Total Passes", "Forward Passes", "Progressive Carries", "Pass %"]),
     "Libero":               ("Defensive Dominance",  ["Total Tackles", "Interceptions", "Aerial Duels won", "Total Clearances"]),
-    "Stopper":              ("Ball-Playing Ability",  ["Total Passes", "Forward Passes", "Progressive Carries", "Pass %"]),
+    "Duelist":              ("Ball Distribution",    ["Total Passes", "Forward Passes", "Successful Long Passes", "Pass %"]),
     # ── Full-Backs ───────────────────────────────────────────────────────
     "Inverted":              ("Attacking Threat",    ["Goal Assists", "Goals", "Key Passes (Attempt Assists)", "Total Shots"]),
     "Defensive":             ("Attacking Threat",    ["Goal Assists", "Goals", "Successful Crosses & Corners"]),
@@ -2101,29 +2081,17 @@ CENTRE_BACK_ROLE_PROFILES = {
         "Progressive Carries", "Carries",
     ],
     "Duelist": [
-        "Total Tackles", "Tackles Won", "Interceptions",
-        "Total Clearances", "Blocked Shots", "Blocks",
-        "Duels", "Duels won",
-        "Ground Duels", "Ground Duels won",
-        "Recoveries",
-    ],
-    "Aerial": [
+        "Total Tackles", "Tackles Won", "Tackle Win %",
         "Aerial Duels", "Aerial Duels won", "Aerial Win %",
-        "Total Clearances", "Headed Goals",
-        "Duels", "Duels won",
+        "Ground Duels", "Ground Duels won", "Ground Duel %",
+        "Total Clearances", "Blocked Shots", "Blocks",
+        "Recoveries", "Duels", "Duels won",
     ],
     "Libero": [
         "Progressive Carries", "Carries", "Successful Dribbles",
         "Total Successful Passes ( Excl Crosses & Corners ) ",
         "Pass %", "Through balls", "Forward Passes",
         "Short Pass %",
-    ],
-    "Stopper": [
-        "Total Tackles", "Tackles Won", "Tackle Win %",
-        "Aerial Duels", "Aerial Duels won", "Aerial Win %",
-        "Ground Duels", "Ground Duels won", "Ground Duel %",
-        "Total Clearances", "Blocked Shots", "Blocks",
-        "Recoveries", "Duels", "Duels won",
     ],
 }
 
@@ -4285,7 +4253,7 @@ _SIMILARITY_PROFILES = {
                       "Aerial Duels won", "Total Passes"],
         "Ball-Playing CB": ["Total Passes", "Forward Passes",
                             "Successful Long Passes", "Interceptions", "Total Clearances"],
-        "Stopper": ["Total Tackles", "Interceptions", "Total Clearances",
+        "Duelist": ["Total Tackles", "Interceptions", "Total Clearances",
                     "Aerial Duels won", "Blocked Shots"],
     },
     "Full-Back": {
