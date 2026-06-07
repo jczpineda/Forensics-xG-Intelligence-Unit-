@@ -3360,13 +3360,19 @@ def render_profile(data, is_current=True):
         league_sel = st.selectbox("League", ["All"] + sorted(df_total["league_display"].unique()), key="prof_lg")
     with c2:
         pool = df_total if league_sel == "All" else df_total[df_total["league_display"] == league_sel]
-        player_names = sorted(pool["nombre"].unique())
-        player_sel = st.selectbox("Player", player_names, key="prof_pl")
+        _opts = _player_options(pool)
+        _labels = [o[0] for o in _opts]
+        _sel_label = st.selectbox("Player", _labels, index=None,
+                                  placeholder="Select a player…", key="prof_pl")
 
-    if not player_sel:
+    if not _sel_label:
         return
 
-    row = pool[pool["nombre"] == player_sel].iloc[0]
+    _, player_sel, _sel_team = _opts[_labels.index(_sel_label)]
+    _prow = pool[(pool["nombre"] == player_sel) & (pool["equipo"] == _sel_team)]
+    if _prow.empty:
+        _prow = pool[pool["nombre"] == player_sel]
+    row = _prow.iloc[0]
     _orig_position = row.get("posicion", "Unknown")
     pos_detail = row.get("posicion_detail", "")
     league = row.get("league_display", "")
@@ -3412,18 +3418,18 @@ def render_profile(data, is_current=True):
         # Filter out low-minutes players whose inflated per-90 rates
         # would skew the percentile rankings for regular starters.
         _MIN_90S_P90 = 10  # 900 min threshold
-        _is_sel = _active_df["nombre"] == player_sel
+        _is_sel = (_active_df["nombre"] == player_sel) & (_active_df["equipo"] == _sel_team)
         _has_mins = _active_df["estimated_90s"].fillna(0) >= _MIN_90S_P90
         p90_filtered = _active_df[_is_sel | _has_mins]
         peers_all = p90_filtered.copy()
-        p90_match = p90_filtered[p90_filtered["nombre"] == player_sel]
+        p90_match = p90_filtered[(p90_filtered["nombre"] == player_sel) & (p90_filtered["equipo"] == _sel_team)]
         row_data = dict(p90_match.iloc[0]) if not p90_match.empty else dict(row)
         grade_df = p90_filtered
         grade_row = row_data
     elif stat_mode == "Total":
         _src = _active_df
         peers_all = _src.copy()
-        row_match = _src[_src["nombre"] == player_sel]
+        row_match = _src[(_src["nombre"] == player_sel) & (_src["equipo"] == _sel_team)]
         row_data = dict(row_match.iloc[0]) if not row_match.empty else dict(row)
         grade_df = _src
         grade_row = row_data
@@ -4566,11 +4572,15 @@ def _find_similar_players(df, player_row, position, metrics, n=10, detail_positi
     # Build percentile matrix for available metrics
     pct_df = peers[avail].rank(pct=True).fillna(0.5)
 
-    # Player's own percentile vector
-    idx = peers.index[peers["nombre"] == player_row["nombre"]]
-    if idx.empty:
-        return pd.DataFrame()
-    player_vec = pct_df.loc[idx[0]].values.astype(float)
+    # Player's own percentile vector — match by exact row index (not name) so
+    # same-named players (e.g. André vs Amadou Onana) resolve correctly.
+    _pid = player_row.name
+    if _pid not in pct_df.index:
+        _byname = peers.index[peers["nombre"] == player_row["nombre"]]
+        if _byname.empty:
+            return pd.DataFrame()
+        _pid = _byname[0]
+    player_vec = pct_df.loc[_pid].values.astype(float)
 
     # Cosine similarity
     norms = np.linalg.norm(pct_df.values, axis=1) * np.linalg.norm(player_vec)
@@ -4579,8 +4589,8 @@ def _find_similar_players(df, player_row, position, metrics, n=10, detail_positi
 
     peers = peers.copy()
     peers["Similarity %"] = (cos_sim * 100).round(1)
-    # Exclude the player themselves
-    peers = peers[peers["nombre"] != player_row["nombre"]]
+    # Exclude only the selected player (keep any same-named different player)
+    peers = peers[peers.index != _pid]
     return peers.nlargest(n, "Similarity %")
 
 
@@ -5000,17 +5010,21 @@ def _render_find_similar(df, mode_label):
     # ── Player search ────────────────────────────────────────────────────
     c1, c2 = st.columns([2, 1])
     with c1:
-        all_names = sorted(df["nombre"].unique())
-        player_sel = st.selectbox("Type or select a player", all_names, index=None,
+        _opts = _player_options(df)
+        _labels = [o[0] for o in _opts]
+        _sel_label = st.selectbox("Type or select a player", _labels, index=None,
                                   placeholder="Start typing a name...", key="sim_player")
     with c2:
         n_results = st.slider("Number of similar players", 5, 20, 10, key="sim_n")
 
-    if not player_sel:
+    if not _sel_label:
         st.info("Select a player above to find players with a similar statistical profile.")
         return
 
-    player_rows = df[df["nombre"] == player_sel]
+    player_sel, _sel_team = _opts[_labels.index(_sel_label)][1:]
+    player_rows = df[(df["nombre"] == player_sel) & (df["equipo"] == _sel_team)]
+    if player_rows.empty:
+        player_rows = df[df["nombre"] == player_sel]
     if player_rows.empty:
         st.warning("Player not found.")
         return
@@ -5067,16 +5081,19 @@ def _render_find_similar(df, mode_label):
         peers = df.copy()
         avail = avail_metrics
         pct_df = peers[avail].rank(pct=True).fillna(0.5)
-        idx = peers.index[peers["nombre"] == player_row["nombre"]]
+        _pid = player_row.name if player_row.name in pct_df.index else None
+        if _pid is None:
+            _byname = peers.index[peers["nombre"] == player_row["nombre"]]
+            _pid = _byname[0] if not _byname.empty else None
         similar = pd.DataFrame()
-        if not idx.empty:
-            player_vec = pct_df.loc[idx[0]].values.astype(float)
+        if _pid is not None:
+            player_vec = pct_df.loc[_pid].values.astype(float)
             norms = np.linalg.norm(pct_df.values, axis=1) * np.linalg.norm(player_vec)
             norms[norms == 0] = 1
             cos_sim = pct_df.values.dot(player_vec) / norms
             peers = peers.copy()
             peers["Similarity %"] = (cos_sim * 100).round(1)
-            peers = peers[peers["nombre"] != player_row["nombre"]]
+            peers = peers[peers.index != _pid]
             similar = peers.nlargest(n_results, "Similarity %")
     else:
         similar = _find_similar_players(df, player_row, position,
@@ -5101,13 +5118,19 @@ def _render_find_similar(df, mode_label):
     show_cols = [c for c in show_cols if c in similar.columns]
     st.dataframe(similar[show_cols].reset_index(drop=True), use_container_width=True)
 
-    # ── Radar: target player vs top 3 similar ────────────────────────────
-    top_names = similar["nombre"].head(3).tolist()
-    radar_names = [player_sel] + top_names
+    # ── Radar: target player vs top 3 similar (explicit rows avoid name clashes)
+    _tgt = player_row.copy()
+    _tgt["_label"] = player_sel
+    _radar_rows = [_tgt]
+    for _, sr in similar.head(3).iterrows():
+        rr = sr.copy()
+        rr["_label"] = f"{sr['nombre']} ({sr.get('equipo', '')})"
+        _radar_rows.append(rr)
     st.markdown(f"### 🕸️ Radar: {player_sel} vs Top Matches{mode_label}")
-    fig = chart_radar(df, radar_names, avail_metrics,
-                      f"{player_sel} vs Similar Players{mode_label}")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(
+        _chart_radar_rows(_radar_rows, avail_metrics, f"{player_sel} vs Similar Players{mode_label}"),
+        use_container_width=True,
+    )
 
     # ── Similarity bar chart ─────────────────────────────────────────────
     st.markdown("### 📊 Similarity Ranking")
@@ -5146,13 +5169,29 @@ def _render_head_to_head(df, mode_label):
 
     filt = filter_df(df, sel_leagues or None, sel_pos or None, teams=sel_teams or None)
 
-    # ── Player selection ─────────────────────────────────────────────────
-    all_players = sorted(filt["nombre"].unique())
-    selected = st.multiselect("Select players to compare (2–6)", all_players,
+    # ── Player selection (team-disambiguated for same-named players) ──────
+    _opts = _player_options(filt)
+    _labels = [o[0] for o in _opts]
+    selected = st.multiselect("Select players to compare (2–6)", _labels,
                               max_selections=6, key="cmp_players")
 
     if len(selected) < 2:
         st.info("Pick at least **2 players** to start the comparison.")
+        return
+
+    _lab2pl = {o[0]: (o[1], o[2]) for o in _opts}
+    sel_rows = []
+    for lbl in selected:
+        nm, tm = _lab2pl[lbl]
+        m = filt[(filt["nombre"] == nm) & (filt["equipo"] == tm)]
+        if m.empty:
+            m = filt[filt["nombre"] == nm]
+        if not m.empty:
+            r = m.iloc[0].copy()
+            r["_label"] = lbl
+            sel_rows.append(r)
+    if len(sel_rows) < 2:
+        st.warning("Couldn't load the selected players.")
         return
 
     # ── Metric selection ─────────────────────────────────────────────────
@@ -5179,39 +5218,35 @@ def _render_head_to_head(df, mode_label):
 
     # ── Radar chart ──────────────────────────────────────────────────────
     st.markdown(f"### 🕸️ Radar Comparison{mode_label}")
-    fig = chart_radar(filt, selected, sel_metrics, f"Player Comparison{mode_label}")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(_chart_radar_rows(sel_rows, sel_metrics, f"Player Comparison{mode_label}"),
+                    use_container_width=True)
 
     # ── Side-by-side stats table ─────────────────────────────────────────
     st.markdown("### 📋 Side-by-Side Stats")
-    comp_rows = filt[filt["nombre"].isin(selected)].copy()
-    display_cols = ["nombre", "equipo", "league_display", "posicion_detail"] + sel_metrics
-    display_cols = [c for c in display_cols if c in comp_rows.columns]
-    st.dataframe(comp_rows[display_cols].reset_index(drop=True), use_container_width=True)
+    tbl = pd.DataFrame([
+        {"Player": r["_label"], "Team": r.get("equipo"), "League": r.get("league_display"),
+         "Pos": r.get("posicion_detail"),
+         **{m: round(r.get(m, 0) or 0, 2) for m in sel_metrics}}
+        for r in sel_rows
+    ])
+    st.dataframe(tbl, use_container_width=True)
 
     # ── Difference bar chart ─────────────────────────────────────────────
-    if len(selected) == 2:
+    if len(sel_rows) == 2:
         st.markdown("### 📊 Head-to-Head Difference")
-        p1_row = comp_rows[comp_rows["nombre"] == selected[0]]
-        p2_row = comp_rows[comp_rows["nombre"] == selected[1]]
-        if not p1_row.empty and not p2_row.empty:
-            diffs = []
-            for m in sel_metrics:
-                v1 = p1_row.iloc[0].get(m, 0) or 0
-                v2 = p2_row.iloc[0].get(m, 0) or 0
-                diffs.append(round(v1 - v2, 2))
-            fig_diff = go.Figure(go.Bar(
-                x=sel_metrics, y=diffs,
-                marker_color=["#2d6a4f" if d >= 0 else "#e63946" for d in diffs],
-                text=[f"+{d}" if d > 0 else str(d) for d in diffs],
-                textposition="outside",
-            ))
-            fig_diff.update_layout(
-                title=f"{selected[0]} minus {selected[1]}",
-                template="plotly_white", height=420, xaxis_tickangle=-45,
-                yaxis_title="Difference", margin=dict(b=120),
-            )
-            st.plotly_chart(fig_diff, use_container_width=True)
+        diffs = [round((sel_rows[0].get(m, 0) or 0) - (sel_rows[1].get(m, 0) or 0), 2) for m in sel_metrics]
+        fig_diff = go.Figure(go.Bar(
+            x=sel_metrics, y=diffs,
+            marker_color=["#2d6a4f" if d >= 0 else "#e63946" for d in diffs],
+            text=[f"+{d}" if d > 0 else str(d) for d in diffs],
+            textposition="outside",
+        ))
+        fig_diff.update_layout(
+            title=f"{sel_rows[0]['_label']} minus {sel_rows[1]['_label']}",
+            template="plotly_white", height=420, xaxis_tickangle=-45,
+            yaxis_title="Difference", margin=dict(b=120),
+        )
+        st.plotly_chart(fig_diff, use_container_width=True)
 
 
 # ── UI: Team Comparison ──────────────────────────────────────────────────────
