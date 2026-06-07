@@ -147,7 +147,18 @@ GK_METRICS = [
     "Total Big Chances Saved",
     "GK Successful Distribution", "GK Unsuccessful Distribution",
     "Save %", "Launch %", "Goals Prevented",
+    "PSxG", "PSxG+/-", "PSxG/Shot",
+    "Penalty Save %", "Caught %", "Claim %",
 ]
+
+# ── GK PSxG (post-shot xG) calibration weights ───────────────────────────────
+# Shots counted are on-target (saves + goals conceded).  Post-shot conversion
+# rates run higher than pre-shot xG, so these weights are calibrated to
+# on-target shots by location.  Big chances saved are priced as premium chances.
+PSXG_W_INSIDE = 0.34       # normal on-target shot, inside box (non-penalty)
+PSXG_W_BIG_CHANCE = 0.55   # big chance — clear scoring opportunity
+PSXG_W_OUTSIDE = 0.12      # on-target shot from outside the box
+PSXG_W_PENALTY = 0.79      # penalty on target
 
 DISCIPLINE_METRICS = ["Yellow Cards", "Total Red Cards", "Total Fouls Conceded"]
 
@@ -282,6 +293,85 @@ def _load_league_opta(folder_path):
     return df
 
 
+def _compute_gk_derived(df):
+    """Compute goalkeeper shot-stopping & command metrics for a DataFrame.
+
+    Returns a dict of {column_name: Series}.  Shared by the raw and the
+    possession-adjusted pipelines so the PSxG model lives in exactly one
+    place and the two can never drift apart.
+
+    PSxG (post-shot expected goals) approximates the goals an average keeper
+    would concede from the on-target shots faced, using calibrated post-shot
+    weights by location.  Big chances saved are priced as premium chances, so
+    a keeper who repels clear openings earns more credit than one facing
+    routine efforts.  PSxG+/- (PSxG minus actual goals conceded) is the
+    "xG prevented" figure — positive means above-average shot-stopping.
+    """
+    out = {}
+
+    _has_ib = ("Saves Made from Inside Box" in df.columns
+               and "Goals Conceded Inside Box" in df.columns)
+    _has_ob = ("Saves Made from Outside Box" in df.columns
+               and "Goals Conceded Outside Box" in df.columns)
+    if _has_ib and _has_ob:
+        shots_ib = (df["Saves Made from Inside Box"].fillna(0)
+                    + df["Goals Conceded Inside Box"].fillna(0))
+        shots_ob = (df["Saves Made from Outside Box"].fillna(0)
+                    + df["Goals Conceded Outside Box"].fillna(0))
+        pens = (df["Penalties Faced"].fillna(0)
+                if "Penalties Faced" in df.columns
+                else pd.Series(0, index=df.index))
+        big_saved = (df["Total Big Chances Saved"].fillna(0)
+                     if "Total Big Chances Saved" in df.columns
+                     else pd.Series(0, index=df.index))
+
+        # Split non-penalty inside-box on-target shots into big chances vs normal.
+        # Cap big chances at the inside-box count so the buckets never overlap.
+        shots_ib_np = (shots_ib - pens).clip(lower=0)
+        big_ib = np.minimum(big_saved, shots_ib_np)
+        normal_ib = (shots_ib_np - big_ib).clip(lower=0)
+
+        psxg = (normal_ib * PSXG_W_INSIDE
+                + big_ib * PSXG_W_BIG_CHANCE
+                + shots_ob * PSXG_W_OUTSIDE
+                + pens * PSXG_W_PENALTY).round(1)
+        out["PSxG"] = psxg
+        if "Goals Conceded" in df.columns:
+            out["PSxG+/-"] = (psxg - df["Goals Conceded"].fillna(0)).round(1)
+        total_shots = shots_ib + shots_ob
+        out["PSxG/Shot"] = (psxg / total_shots.replace(0, np.nan)).round(3)
+        out["Inside Box Save %"] = (
+            df["Saves Made from Inside Box"].fillna(0)
+            / shots_ib.replace(0, np.nan) * 100
+        ).round(1)
+        out["Outside Box Save %"] = (
+            df["Saves Made from Outside Box"].fillna(0)
+            / shots_ob.replace(0, np.nan) * 100
+        ).round(1)
+
+    # Penalty Save % — penalty stopping isolated from open-play save %
+    if "Penalties Saved" in df.columns and "Penalties Faced" in df.columns:
+        out["Penalty Save %"] = (
+            df["Penalties Saved"].fillna(0)
+            / df["Penalties Faced"].replace(0, np.nan) * 100
+        ).round(1)
+
+    # Caught % — share of saves held cleanly vs parried (rebound risk)
+    if "Saves made - caught" in df.columns and "Saves made - parried" in df.columns:
+        held = df["Saves made - caught"].fillna(0)
+        handled = held + df["Saves made - parried"].fillna(0)
+        out["Caught %"] = (held / handled.replace(0, np.nan) * 100).round(1)
+
+    # Claim % — command of area: crosses claimed (catches + punches) vs spilled
+    if ("Catches" in df.columns and "Punches" in df.columns
+            and "Crosses not Claimed" in df.columns):
+        claimed = df["Catches"].fillna(0) + df["Punches"].fillna(0)
+        cross_actions = claimed + df["Crosses not Claimed"].fillna(0)
+        out["Claim %"] = (claimed / cross_actions.replace(0, np.nan) * 100).round(1)
+
+    return out
+
+
 @st.cache_data(show_spinner="Loading football data...")
 def load_data():
     """Load all Opta data.  Returns dict with 'total' and 'per90' DataFrames.
@@ -374,35 +464,10 @@ def load_data():
     if "Saves Made" in combined.columns and "Goals Conceded" in combined.columns:
         _derived["Goals Prevented"] = combined["Saves Made"].fillna(0) - combined["Goals Conceded"].fillna(0)
 
-    # ── GK PSxG approximation (shot-location weights) ─────────────────────
-    # Inside box (non-penalty): 0.36 xG/shot | Outside box: 0.07 xG/shot | Penalty: 0.76 xG/shot
-    _has_ib = ("Saves Made from Inside Box" in combined.columns
-               and "Goals Conceded Inside Box" in combined.columns)
-    _has_ob = ("Saves Made from Outside Box" in combined.columns
-               and "Goals Conceded Outside Box" in combined.columns)
-    if _has_ib and _has_ob:
-        _shots_ib = (combined["Saves Made from Inside Box"].fillna(0)
-                     + combined["Goals Conceded Inside Box"].fillna(0))
-        _shots_ob = (combined["Saves Made from Outside Box"].fillna(0)
-                     + combined["Goals Conceded Outside Box"].fillna(0))
-        _pens = (combined["Penalties Faced"].fillna(0)
-                 if "Penalties Faced" in combined.columns
-                 else pd.Series(0, index=combined.index))
-        _shots_ib_np = (_shots_ib - _pens).clip(lower=0)
-        _psxg = (_shots_ib_np * 0.36 + _shots_ob * 0.07 + _pens * 0.76).round(1)
-        _derived["PSxG"] = _psxg
-        if "Goals Conceded" in combined.columns:
-            _derived["PSxG+/-"] = (_psxg - combined["Goals Conceded"].fillna(0)).round(1)
-        _total_shots_gk = _shots_ib + _shots_ob
-        _derived["PSxG/Shot"] = (_psxg / _total_shots_gk.replace(0, np.nan)).round(3)
-        _derived["Inside Box Save %"] = (
-            combined["Saves Made from Inside Box"].fillna(0)
-            / _shots_ib.replace(0, np.nan) * 100
-        ).round(1)
-        _derived["Outside Box Save %"] = (
-            combined["Saves Made from Outside Box"].fillna(0)
-            / _shots_ob.replace(0, np.nan) * 100
-        ).round(1)
+    # ── GK shot-stopping (PSxG) & command metrics ─────────────────────────
+    # Calibrated PSxG/PSxG+/-, penalty stopping, handling and command of area.
+    # Computed via shared helper so raw and Padj pipelines stay in sync.
+    _derived.update(_compute_gk_derived(combined))
 
     # GK Launch %
     if "Successful Launches" in combined.columns and "Unsuccessful Launches" in combined.columns:
@@ -520,6 +585,9 @@ def load_data():
                                         "Ground Duel %", "Duel %", "Cross %",
                                         "Long Pass %", "Short Pass %",
                                         "Retention %", "Own Half Pass %",
+                                        # GK ratio metrics — already rates, do not re-divide
+                                        "Inside Box Save %", "Outside Box Save %",
+                                        "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
                                         # GK rate metrics already normalised — do not re-divide
                                         "Saves/90", "Clean Sheet %"}:
             continue
@@ -543,6 +611,9 @@ def load_data():
         "Ground Duel %", "Duel %", "Cross %",
         "Long Pass %", "Short Pass %",
         "Retention %", "Own Half Pass %",
+        # GK ratio metrics — already rates, do not re-divide
+        "Inside Box Save %", "Outside Box Save %",
+        "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
         # GK rate metrics already normalised — do not re-divide
         "Saves/90", "Clean Sheet %",
     }
@@ -595,33 +666,9 @@ def load_data():
             sf = padj["Saves Made"].fillna(0) + padj["Goals Conceded"].fillna(0)
             padj["Save %"] = (padj["Saves Made"].fillna(0) / sf.replace(0, np.nan) * 100).round(1)
             padj["Goals Prevented"] = padj["Saves Made"].fillna(0) - padj["Goals Conceded"].fillna(0)
-        # Re-derive PSxG from possession-adjusted shot counts
-        _padj_has_ib = ("Saves Made from Inside Box" in padj.columns
-                        and "Goals Conceded Inside Box" in padj.columns)
-        _padj_has_ob = ("Saves Made from Outside Box" in padj.columns
-                        and "Goals Conceded Outside Box" in padj.columns)
-        if _padj_has_ib and _padj_has_ob:
-            _p_shots_ib = (padj["Saves Made from Inside Box"].fillna(0)
-                           + padj["Goals Conceded Inside Box"].fillna(0))
-            _p_shots_ob = (padj["Saves Made from Outside Box"].fillna(0)
-                           + padj["Goals Conceded Outside Box"].fillna(0))
-            _p_pens = (padj["Penalties Faced"].fillna(0)
-                       if "Penalties Faced" in padj.columns
-                       else pd.Series(0, index=padj.index))
-            _p_shots_ib_np = (_p_shots_ib - _p_pens).clip(lower=0)
-            _p_psxg = (_p_shots_ib_np * 0.36 + _p_shots_ob * 0.07 + _p_pens * 0.76).round(1)
-            padj["PSxG"] = _p_psxg
-            padj["PSxG+/-"] = (_p_psxg - padj["Goals Conceded"].fillna(0)).round(1)
-            _p_total_shots = _p_shots_ib + _p_shots_ob
-            padj["PSxG/Shot"] = (_p_psxg / _p_total_shots.replace(0, np.nan)).round(3)
-            padj["Inside Box Save %"] = (
-                padj["Saves Made from Inside Box"].fillna(0)
-                / _p_shots_ib.replace(0, np.nan) * 100
-            ).round(1)
-            padj["Outside Box Save %"] = (
-                padj["Saves Made from Outside Box"].fillna(0)
-                / _p_shots_ob.replace(0, np.nan) * 100
-            ).round(1)
+        # Re-derive GK shot-stopping & command metrics from Padj-adjusted counts
+        for _gk_col, _gk_val in _compute_gk_derived(padj).items():
+            padj[_gk_col] = _gk_val
         if "Successful Launches" in padj.columns and "Unsuccessful Launches" in padj.columns:
             tl = padj["Successful Launches"].fillna(0) + padj["Unsuccessful Launches"].fillna(0)
             padj["Launch %"] = (padj["Successful Launches"].fillna(0) / tl.replace(0, np.nan) * 100).round(1)
@@ -1011,8 +1058,8 @@ GK_PIZZA_METRICS = {
     "Shot-Stopping": [
         ("Saves/90", "Saves/90"),          # rate — fair for GKs on dominant teams
         ("Save %", "Save %"),
-        ("PSxG+/-", "PSxG+/-"),
-        ("Goals Prevented", "Goals Prevented"),
+        ("PSxG+/-", "PSxG+/-"),            # xG prevented — above/below average shot-stopping
+        ("Penalty Save %", "Penalty Save %"),
         ("Big Chances Saved", "Total Big Chances Saved"),
         ("Clean Sheet %", "Clean Sheet %"),
     ],
@@ -1022,6 +1069,8 @@ GK_PIZZA_METRICS = {
         ("Launch %", "Launch %"),
     ],
     "Command": [
+        ("Claim %", "Claim %"),
+        ("Caught %", "Caught %"),
         ("Catches", "Catches"),
         ("Punches", "Punches"),
     ],
@@ -3320,8 +3369,8 @@ def render_profile(data):
         st.markdown("---")
         st.markdown(f"### 🎯 Post-Shot Expected Goals (PSxG){scope_label}")
         st.caption(
-            "PSxG is approximated from shot-location data "
-            "(inside box × 0.36 + outside box × 0.07 + penalties × 0.76). "
+            "PSxG is approximated from on-target shots faced, weighted by location "
+            "(inside box × 0.34, big chances × 0.55, outside box × 0.12, penalties × 0.79). "
             "Percentile ranks are vs same-scope Goalkeepers."
         )
 
@@ -4321,7 +4370,8 @@ def render_gk_analysis(data):
     st.subheader("🧤 Goalkeeper Analysis")
     st.caption(
         "PSxG-based performance rankings for goalkeepers across Europe's top 6 leagues. "
-        "PSxG is approximated from shot-location data (inside box × 0.36 + outside box × 0.07 + penalties × 0.76)."
+        "PSxG is approximated from on-target shots faced, weighted by location "
+        "(inside box × 0.34, big chances × 0.55, outside box × 0.12, penalties × 0.79)."
     )
 
     # Controls
