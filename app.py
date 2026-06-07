@@ -1756,7 +1756,7 @@ _KPI_INVERTED_CATS = set()
 
 # Bump this string whenever role names/definitions change to invalidate the
 # 24-hour Player Lab cache immediately on redeployment.
-_ROLE_SCHEMA_VERSION = "v11"  # Key-Strengths uplift: reward elite standout metrics in the grade
+_ROLE_SCHEMA_VERSION = "v12"  # Key-Strengths uplift tuned down (cap +4)
 
 _ROLE_KPI_PROFILES = {
     # --- Striker roles ---
@@ -2683,8 +2683,8 @@ def _compute_standout_strengths(row_data, pos_peers, is_gk, n=4, min_pct=70):
 # small, capped bonus that rewards a player's elite standout metrics — the same
 # metrics shown in the Standout Strengths panel — so the grade leads with what a
 # player is genuinely elite at.  Average players (no metric >= 85th) are unchanged.
-_KEY_STRENGTH_BONUS_TIERS = [(95, 2.5), (90, 1.5), (85, 0.75)]
-_KEY_STRENGTH_BONUS_CAP = 6.0
+_KEY_STRENGTH_BONUS_TIERS = [(95, 2.0), (90, 1.0), (85, 0.5)]
+_KEY_STRENGTH_BONUS_CAP = 4.0
 
 
 def _key_strength_bonus_from_pcts(pcts):
@@ -3026,9 +3026,9 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
             if not cols:
                 continue
             sub = mpct[cols]
-            b = ((sub >= 95).sum(axis=1) * 2.5
-                 + ((sub >= 90) & (sub < 95)).sum(axis=1) * 1.5
-                 + ((sub >= 85) & (sub < 90)).sum(axis=1) * 0.75).clip(upper=6.0)
+            b = ((sub >= 95).sum(axis=1) * 2.0
+                 + ((sub >= 90) & (sub < 95)).sum(axis=1) * 1.0
+                 + ((sub >= 85) & (sub < 90)).sum(axis=1) * 0.5).clip(upper=4.0)
             bonus.loc[sub.index] = b
         return bonus
 
