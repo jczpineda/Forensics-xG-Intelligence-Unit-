@@ -763,6 +763,37 @@ def _ordinal(n):
     return f"{i}{_ord_suffix(i)}"
 
 
+# ── Squad Role (share-of-season minutes) ─────────────────────────────────────
+# Classified by share of the season rather than absolute minutes, so it's fair
+# across leagues that play a different number of games (33–37).
+_SQUAD_ROLE_STARTER = 0.60   # >= 60% of the season's minutes
+_SQUAD_ROLE_ROTATION = 0.30  # >= 30% (otherwise Depth)
+
+
+def _league_season_minutes(df):
+    """Approx minutes available per league (games × 90), inferred from the most
+    minutes any player logged in that league (an ever-present ≈ games × 90)."""
+    out = {}
+    if "league_display" not in df.columns or "Time Played" not in df.columns:
+        return out
+    for lg, grp in df.groupby("league_display"):
+        games = max(1, round((grp["Time Played"].max() or 0) / 90))
+        out[lg] = games * 90
+    return out
+
+
+def _squad_role_label(minutes, season_minutes):
+    """Starter / Rotation / Depth from a player's share of the season."""
+    if not season_minutes:
+        return "Depth"
+    share = (minutes or 0) / season_minutes
+    if share >= _SQUAD_ROLE_STARTER:
+        return "Starter"
+    if share >= _SQUAD_ROLE_ROTATION:
+        return "Rotation"
+    return "Depth"
+
+
 # ── Chart Builders ───────────────────────────────────────────────────────────
 
 def chart_bar(data, x, y, title, color=None, orientation="v", height=520):
@@ -1761,7 +1792,7 @@ _KPI_INVERTED_CATS = set()
 
 # Bump this string whenever role names/definitions change to invalidate the
 # 24-hour Player Lab cache immediately on redeployment.
-_ROLE_SCHEMA_VERSION = "v12"  # Key-Strengths uplift tuned down (cap +4)
+_ROLE_SCHEMA_VERSION = "v13"  # Squad Role by share-of-season minutes (60/30)
 
 _ROLE_KPI_PROFILES = {
     # --- Striker roles ---
@@ -2887,13 +2918,14 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
         "Salary": _sal_series.values,
     }, index=gdf.index)
 
-    # Squad Role based on minutes played
+    # Squad Role by share of the season (fair across 33–37 game leagues)
     _mins = gdf["Time Played"].fillna(0) if "Time Played" in gdf.columns else gdf["estimated_90s"].fillna(0) * 90
-    out["Squad Role"] = pd.cut(
-        _mins,
-        bins=[-1, 899, 2249, float("inf")],
-        labels=["Depth", "Rotation", "Starter"],
-    ).astype(str)
+    _season = gdf["league_display"].map(_league_season_minutes(gdf)).replace(0, np.nan)
+    _share = _mins / _season
+    out["Squad Role"] = np.where(
+        _share >= _SQUAD_ROLE_STARTER, "Starter",
+        np.where(_share >= _SQUAD_ROLE_ROTATION, "Rotation", "Depth"),
+    )
 
     # ── Top Strength: each player's #1 metric vs same-position peers ──────
     # Uses the curated pizza pools (clean labels) and the Europe-wide per-metric
@@ -3150,7 +3182,7 @@ def render_player_lab(data):
     with f4:
         sel_squad_roles = st.multiselect("Squad Role", ["Starter", "Rotation", "Depth"],
                                          default=[], key="lab_squad_roles",
-                                         help="Starter ≥ 2250 min · Rotation 900–2249 min · Depth < 900 min")
+                                         help="Share of the season's minutes — Starter ≥60% · Rotation 30–60% · Depth <30%")
 
     # Grade range selector
     grade_col, grade_type_col = st.columns([3, 1])
@@ -3395,14 +3427,10 @@ def render_profile(data):
     _display_pct = round(min(99.9, _overall_pct + _total_bonus), 1) if _total_bonus > 0 else _overall_pct
     _display_grade = _percentile_to_grade(_display_pct) if _total_bonus > 0 else _overall_grade
 
-    # ── Squad Role (minutes-based) ────────────────────────────────────────
+    # ── Squad Role (share of the season's minutes) ────────────────────────
     _player_mins = row.get("Time Played", 0) or 0
-    if _player_mins >= 2250:
-        _squad_role = "Starter"
-    elif _player_mins >= 900:
-        _squad_role = "Rotation"
-    else:
-        _squad_role = "Depth"
+    _season_mins = _league_season_minutes(df_total).get(league, 34 * 90)
+    _squad_role = _squad_role_label(_player_mins, _season_mins)
 
     # ── Build tooltip with sub-grade breakdown ────────────────────────
     _sub_lines = "&#10;".join(
