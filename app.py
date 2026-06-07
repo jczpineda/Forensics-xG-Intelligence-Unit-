@@ -658,7 +658,9 @@ def load_data(season=CURRENT_SEASON):
             if total > 0 and n_teams > 0:
                 for team, passes in tp.items():
                     poss_pct = passes / total * n_teams * 50
-                    poss_pct = max(30.0, min(70.0, poss_pct))
+                    # Clamp to [38,62] — keeps the adjustment factor in a sane
+                    # ~0.81–1.32 range instead of up to 1.67 at the extremes.
+                    poss_pct = max(38.0, min(62.0, poss_pct))
                     team_poss[(league, team)] = poss_pct
 
         # Build lookup DataFrame for vectorized merge
@@ -740,9 +742,8 @@ def load_data(season=CURRENT_SEASON):
                 )
         result["padj_per90"] = padj_per90
 
-        # Possession-adjusted values are the default Total and Per 90
-        result["total"] = padj
-        result["per90"] = padj_per90
+        # Default Total/Per 90 stay RAW; possession-adjusted views are opt-in
+        # (the sidebar "Possession-adjust" toggle selects result["padj"]).
     else:
         result["padj"] = combined.copy()
         result["padj_per90"] = per90.copy()
@@ -3139,15 +3140,19 @@ _STAT_MODES = ["Total", "Per 90"]
 _STAT_MODE_MAP = {
     "Total": "total",
     "Per 90": "per90",
-    # Legacy aliases (padj is now the default total)
-    "Padj": "total",
-    "Padj Per 90": "per90",
 }
+
+# When the sidebar "Possession-adjust" toggle is on, raw frames are swapped
+# for their possession-adjusted equivalents.
+_PADJ_KEY = {"total": "padj", "per90": "padj_per90"}
 
 
 def _select_df(data, stat_mode):
-    """Return the DataFrame corresponding to *stat_mode*."""
-    return data[_STAT_MODE_MAP.get(stat_mode, "total")]
+    """Return the DataFrame for *stat_mode*, possession-adjusted if the toggle is on."""
+    key = _STAT_MODE_MAP.get(stat_mode, "total")
+    if st.session_state.get("padj_on", False):
+        key = _PADJ_KEY.get(key, key)
+    return data[key]
 
 
 def render_player_lab(data, is_current=True):
@@ -5659,10 +5664,18 @@ def main():
              "potential grading (current-season only).",
     )
     is_current = season == CURRENT_SEASON
-    if is_current:
-        st.caption(f"📅 Season: **{season}** (current · Opta)")
-    else:
-        st.caption(f"📅 Season: **{season}** (historical)")
+
+    # ── Possession-adjust toggle (raw by default) ────────────────────────
+    padj_on = st.sidebar.toggle(
+        "⚖️ Possession-adjust stats", value=False, key="padj_on",
+        help="Scale stats for how much possession a team has — useful for fairly "
+             "comparing defenders across dominant vs. low-possession teams. Off = raw numbers.",
+    )
+
+    _season_tag = "current · Opta" if is_current else "historical"
+    _padj_tag = " · ⚖️ possession-adjusted" if padj_on else ""
+    st.caption(f"📅 Season: **{season}** ({_season_tag}){_padj_tag}")
+    if not is_current:
         st.sidebar.caption(
             "ℹ️ Historical season — market values, salaries and potential "
             "grading are available for the current season only."
