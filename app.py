@@ -3553,6 +3553,16 @@ def render_profile(data, is_current=True):
             f"(see Standout Strengths below)."
         )
 
+    # Contextual nudge: defenders/DMs on dominant teams are under-credited on
+    # raw defensive volume — point the user to the Possession-adjust toggle.
+    _DEF_NUDGE_POSITIONS = {"Centre-Back", "Full-Back", "Central Midfield"}
+    if position in _DEF_NUDGE_POSITIONS and not st.session_state.get("padj_on", False):
+        st.caption(
+            "💡 For a defender/midfielder, try **⚖️ Possession-adjust stats** in the "
+            "sidebar — a fairer cross-team comparison of defensive work (players on "
+            "dominant sides face fewer defensive actions)."
+        )
+
     # ── Market Value & Salary (current season only) ──────────────────────
     if is_current:
         _player_team = row.get("equipo")
