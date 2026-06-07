@@ -85,29 +85,10 @@ def _normalize_name(name):
 
 
 # ── Scrapers ─────────────────────────────────────────────────────────────────
-
-def _resolve_full_name(short_name, team=None):
-    """Resolve 'E. Haaland' -> 'Erling Haaland' via TheSportsDB (best effort)."""
-    try:
-        q = urllib.parse.quote(short_name)
-        url = f"https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p={q}"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read().decode())
-        players = [p for p in (data.get("player") or [])
-                   if (p.get("strSport") or "").lower() == "soccer"]
-        if not players:
-            return short_name
-        if team:
-            tl = _normalize_name(team).replace(" fc", "").replace("fc ", "").strip()
-            for p in players:
-                pt = _normalize_name(p.get("strTeam") or "")
-                if tl and pt and (tl in pt or pt in tl):
-                    return p.get("strPlayer") or short_name
-        return players[0].get("strPlayer") or short_name
-    except Exception:
-        return short_name
-
+# NOTE: we deliberately do NOT resolve full names via TheSportsDB — its search
+# returned wrong players for abbreviated names (e.g. "B. Saka" -> "Fabrice
+# N'Sakala").  Transfermarkt and Capology both fuzzy-match the short name and we
+# disambiguate by team, which is far more accurate.
 
 def _http_get(url):
     """GET with retry + backoff; returns Response or None."""
@@ -341,21 +322,23 @@ def main():
             rows[sn] = cur
             continue
 
-        full_name = _resolve_full_name(sn, team=team)
-        time.sleep(0.3)
-
+        # Pass the short name + team straight to the scrapers.  Both
+        # Transfermarkt's search and Capology's index do their own fuzzy
+        # matching and we disambiguate by team — this is far more reliable
+        # than TheSportsDB full-name resolution, which returned wrong players
+        # (e.g. "B. Saka" -> "Fabrice N'Sakala", "A. Wharton" -> "Scott Wharton").
         mv = cur.get("market_value", "") or ""
         sal = cur.get("salary", "") or ""
         if need_mv:
-            mv = _fetch_transfermarkt_value(full_name, team=team) or ""
+            mv = _fetch_transfermarkt_value(sn, team=team) or ""
             time.sleep(DELAY)
         if need_sal:
-            sal = _fetch_capology_salary(full_name, team=team) or ""
+            sal = _fetch_capology_salary(sn, team=team) or ""
             time.sleep(DELAY)
 
         rows[sn] = {"market_value": mv, "salary": sal}
         fetched += 1
-        print(f"  [{i + 1}/{len(players)}] {sn} ({full_name}) -> "
+        print(f"  [{i + 1}/{len(players)}] {sn} -> "
               f"MV: {mv or 'N/A'} | Salary: {sal or 'N/A'}")
 
         if fetched % CHECKPOINT_EVERY == 0:
