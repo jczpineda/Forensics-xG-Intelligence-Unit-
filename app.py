@@ -743,6 +743,26 @@ def _safe_int(val):
         return 0
 
 
+def _ord_suffix(n):
+    """Ordinal suffix for a number: 1->'st', 2->'nd', 3->'rd', 11->'th', 92->'nd'."""
+    try:
+        n = int(round(float(n)))
+    except (TypeError, ValueError):
+        return "th"
+    if 10 <= n % 100 <= 20:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+
+def _ordinal(n):
+    """Format a number as an ordinal string: 92 -> '92nd', 11 -> '11th'."""
+    try:
+        i = int(round(float(n)))
+    except (TypeError, ValueError):
+        return str(n)
+    return f"{i}{_ord_suffix(i)}"
+
+
 # ── Chart Builders ───────────────────────────────────────────────────────────
 
 def chart_bar(data, x, y, title, color=None, orientation="v", height=520):
@@ -2379,7 +2399,7 @@ def _percentile_to_grade(pct):
 def _grade_html(grade, label, pct=None):
     """Return styled HTML for a grade card."""
     color = _GRADE_COLORS.get(grade, "#888")
-    pct_html = f"<div style='font-size:10px;color:#777;margin-top:2px;'>{pct:.0f}th</div>" if pct is not None else ""
+    pct_html = f"<div style='font-size:10px;color:#777;margin-top:2px;'>{_ordinal(pct)}</div>" if pct is not None else ""
     return (
         f"<div style='text-align:center;'>"
         f"<div style='font-size:11px;color:#aaa;margin-bottom:4px;'>{label}</div>"
@@ -2822,7 +2842,7 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
         best_col = sub.idxmax(axis=1)
         best_pct = sub.max(axis=1)
         for idx in sub.index:
-            out.at[idx, "Top Strength"] = f"{label_map[best_col[idx]]} ({best_pct[idx]:.0f}th)"
+            out.at[idx, "Top Strength"] = f"{label_map[best_col[idx]]} ({_ordinal(best_pct[idx])})"
 
     # Attribute grade columns (vectorized)
     _outfield_attrs = list(ATTRIBUTE_GRADE_CATEGORIES.keys())
@@ -3294,7 +3314,7 @@ def render_profile(data):
 
     # ── Build tooltip with sub-grade breakdown ────────────────────────
     _sub_lines = "&#10;".join(
-        f"{attr}: {g} ({pct:.0f}th)" for attr, (g, pct) in attr_grades.items() if pct is not None
+        f"{attr}: {g} ({_ordinal(pct)})" for attr, (g, pct) in attr_grades.items() if pct is not None
     )
     _ov_color = _GRADE_COLORS.get(_display_grade, "#888")
     _stat_ctx = stat_mode if stat_mode != "Total" else "Season Totals"
@@ -3336,7 +3356,7 @@ def render_profile(data):
         f"background:#444;color:#ccc;font-size:10px;font-weight:bold;line-height:1;'>"
         f"?</span></span>"
         f"<span style='font-size:72px;font-weight:bold;color:{_ov_color};line-height:1;'>{_display_grade}</span>"
-        f"<span style='font-size:11px;color:#777;'>{_display_pct:.1f}th pctl{_pctl_suffix}</span>"
+        f"<span style='font-size:11px;color:#777;'>{_ordinal(_display_pct)} pctl{_pctl_suffix}</span>"
         f"</span></div>"
         f"</div></div>",
         unsafe_allow_html=True,
@@ -3350,10 +3370,10 @@ def render_profile(data):
             f"<strong>{_exc_label}</strong>"
             f"&nbsp;&middot;&nbsp;<span style='color:#ffd740;font-weight:bold;'>"
             f"{_exc_tier} (+{_exc_bonus_pts} pts)</span>"
-            f"&nbsp;&middot;&nbsp;{_exc_avg_pct:.0f}th pctl vs {position}s"
+            f"&nbsp;&middot;&nbsp;{_ordinal(_exc_avg_pct)} pctl vs {position}s"
             f"<br><span style='font-size:11px;color:#888;'>"
-            f"Base grade: {_overall_grade} ({_overall_pct:.0f}th pctl) "
-            f"&#8594; boosted to {_display_grade} ({_display_pct:.0f}th pctl)"
+            f"Base grade: {_overall_grade} ({_ordinal(_overall_pct)} pctl) "
+            f"&#8594; boosted to {_display_grade} ({_ordinal(_display_pct)} pctl)"
             f"</span></div>",
             unsafe_allow_html=True,
         )
@@ -3438,7 +3458,7 @@ def render_profile(data):
                     f"border-radius:8px;padding:12px 14px;'>"
                     f"<div style='font-size:12px;color:#aaa;height:32px;'>{_s['label']}</div>"
                     f"<div style='font-size:30px;font-weight:bold;color:{_s['color']};line-height:1.1;'>"
-                    f"{_s['pct']:.0f}<span style='font-size:13px;'>th</span></div>"
+                    f"{_s['pct']:.0f}<span style='font-size:13px;'>{_ord_suffix(_s['pct'])}</span></div>"
                     f"<div style='font-size:11px;color:#ccc;'>{_s['tier']} · {_vstr}</div>"
                     f"</div>",
                     unsafe_allow_html=True,
@@ -3499,7 +3519,7 @@ def render_profile(data):
         _shot_rank = _gk_pct_rank(psxg_shot_val, "PSxG/Shot")
 
         def _pct_delta(pct):
-            return f"{pct:.0f}th %ile" if pct is not None else None
+            return f"{_ordinal(pct)} %ile" if pct is not None else None
 
         # ── Top-row summary metrics ────────────────────────────────────
         mc1, mc2, mc3, mc4, mc5 = st.columns(5)
@@ -3647,7 +3667,7 @@ def render_profile(data):
                 st.markdown(f"**{cat}**")
                 st.progress(min(int(pct), 100))
                 p_avg = peer_avg_pcts.get(cat, 50)
-                st.caption(f"{pct:.0f}th %ile · Benchmark: {p_avg:.0f}th")
+                st.caption(f"{_ordinal(pct)} %ile · Benchmark: {_ordinal(p_avg)}")
 
     # ── Detailed Stats ───────────────────────────────────────────────────
     st.markdown("---")
@@ -4512,7 +4532,7 @@ def render_gk_analysis(data):
                         f"border-radius:8px;padding:12px 14px;'>"
                         f"<div style='font-size:12px;color:#aaa;height:32px;'>{_s['label']}</div>"
                         f"<div style='font-size:30px;font-weight:bold;color:{_s['color']};line-height:1.1;'>"
-                        f"{_s['pct']:.0f}<span style='font-size:13px;'>th</span></div>"
+                        f"{_s['pct']:.0f}<span style='font-size:13px;'>{_ord_suffix(_s['pct'])}</span></div>"
                         f"<div style='font-size:11px;color:#ccc;'>{_s['tier']} · {_vstr}</div>"
                         f"</div>",
                         unsafe_allow_html=True,
@@ -5240,7 +5260,7 @@ less certain the further out you look.
             f"<div style='font-size:11px;color:#aaa;'>Current Grade</div>"
             f"<div style='font-size:60px;font-weight:bold;color:{_curr_color};line-height:1.05;'>"
             f"{current_grade}</div>"
-            f"<div style='font-size:12px;color:#777;'>{current_pct:.0f}th pctl · {league}</div>"
+            f"<div style='font-size:12px;color:#777;'>{_ordinal(current_pct)} pctl · {league}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -5268,7 +5288,7 @@ less certain the further out you look.
                 f"<div style='font-size:52px;font-weight:bold;color:{_pg_color};line-height:1.05;'>"
                 f"{proj['grade']}</div>"
                 f"<div style='font-size:12px;color:{_arrow_color};'>"
-                f"{_arrow} {proj['pct']:.0f}th pctl</div>"
+                f"{_arrow} {_ordinal(proj['pct'])} pctl</div>"
                 f"<div style='font-size:10px;color:#555;margin-top:4px;'>{proj['notes']}</div>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -5310,11 +5330,11 @@ less certain the further out you look.
         textposition="top center",
         textfont=dict(size=14, color="#f4a261", family="Arial Black"),
         name="Projected percentile",
-        customdata=[[p["grade"], p["pct"], p["notes"]] for p in projections],
+        customdata=[[p["grade"], _ordinal(p["pct"]), p["notes"]] for p in projections],
         hovertemplate=(
             "<b>%{x}</b><br>"
             "Grade: %{customdata[0]}<br>"
-            "Percentile: %{customdata[1]:.0f}th<br>"
+            "Percentile: %{customdata[1]}<br>"
             "%{customdata[2]}"
             "<extra></extra>"
         ),
@@ -5367,7 +5387,7 @@ less certain the further out you look.
             f"<div style='font-size:76px;font-weight:bold;color:{_ceiling_color};"
             f"line-height:1;'>{_ceiling_proj['grade']}</div>"
             f"<div style='font-size:13px;color:#777;margin-top:8px;'>"
-            f"{_ceiling_proj['pct']:.0f}th percentile</div>"
+            f"{_ordinal(_ceiling_proj['pct'])} percentile</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -5380,7 +5400,7 @@ less certain the further out you look.
         factors = [
             {
                 "Factor": "Current Grade",
-                "Value": f"{current_grade} ({current_pct:.0f}th pctl)",
+                "Value": f"{current_grade} ({_ordinal(current_pct)} pctl)",
                 "Impact": "Baseline",
             },
             {
