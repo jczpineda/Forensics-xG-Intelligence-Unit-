@@ -1054,12 +1054,18 @@ PIZZA_METRICS = {
     ],
 }
 
+# NOTE: These categories drive BOTH the GK pizza chart and the GK overall grade
+# in the Player Profile.  Only reliable, high-sample metrics belong here.
+# Penalty Save % (tiny samples — a handful of penalties), Caught % (catch-vs-parry
+# style, small samples) and Claim % (clusters at 100% so it ranks poorly despite
+# being "perfect") are intentionally EXCLUDED from grading — they are shown as
+# informational stats in the Detailed Statistics tabs and the PSxG statline.
 GK_PIZZA_METRICS = {
     "Shot-Stopping": [
         ("Saves/90", "Saves/90"),          # rate — fair for GKs on dominant teams
         ("Save %", "Save %"),
         ("PSxG+/-", "PSxG+/-"),            # xG prevented — above/below average shot-stopping
-        ("Penalty Save %", "Penalty Save %"),
+        ("Goals Prevented", "Goals Prevented"),
         ("Big Chances Saved", "Total Big Chances Saved"),
         ("Clean Sheet %", "Clean Sheet %"),
     ],
@@ -1069,8 +1075,6 @@ GK_PIZZA_METRICS = {
         ("Launch %", "Launch %"),
     ],
     "Command": [
-        ("Claim %", "Claim %"),
-        ("Caught %", "Caught %"),
         ("Catches", "Catches"),
         ("Punches", "Punches"),
     ],
@@ -2589,6 +2593,49 @@ def _compute_exceptional_contribution(row_data, position, role, df_peers):
     return label, avg_pct, bonus_pts, tier_label
 
 
+def _compute_standout_strengths(row_data, pos_peers, is_gk, n=4, min_pct=70):
+    """Return a player's top-N metrics by percentile vs same-position peers.
+
+    Works at the *metric* level (not category level) so a genuinely elite trait
+    surfaces even when its parent category grades as average — e.g. a keeper with
+    middling overall shot-stopping but elite Big Chances Saved / Command.
+
+    Uses the curated, display-named pizza metric pools so labels are clean and
+    position-appropriate.  Only metrics ranking at/above *min_pct* are returned,
+    so a player with no standout simply yields fewer (or zero) cards.
+    Returns a list of dicts: {label, value, pct, tier, color}.
+    """
+    pool = GK_PIZZA_METRICS if is_gk else PIZZA_METRICS
+    if pos_peers is None or len(pos_peers) < 5:
+        return []
+
+    scored, seen = [], set()
+    for metric_list in pool.values():
+        for label, col in metric_list:
+            if col in seen or col not in pos_peers.columns:
+                continue
+            seen.add(col)
+            val = row_data.get(col)
+            val = 0 if val is None or (isinstance(val, float) and np.isnan(val)) else val
+            peer_vals = pos_peers[col].fillna(0)
+            pct = round((peer_vals < val).sum() / len(peer_vals) * 100, 1)
+            scored.append((label, val, pct))
+
+    scored.sort(key=lambda x: x[2], reverse=True)
+    out = []
+    for label, val, pct in scored:
+        if pct < min_pct or len(out) >= n:
+            break
+        if pct >= 90:
+            tier, color = "Elite", "#00c853"
+        elif pct >= 80:
+            tier, color = "Excellent", "#2979ff"
+        else:
+            tier, color = "Strong", "#f4a261"
+        out.append({"label": label, "value": val, "pct": pct, "tier": tier, "color": color})
+    return out
+
+
 # ── UI: Player Lab ───────────────────────────────────────────────────────────
 
 # Grade ordering for slider
@@ -3355,6 +3402,32 @@ def render_profile(data):
     basis_label = f" [{role}]" if basis_mode == "Role" else ""
     mode_label = (f" ({stat_mode})" if stat_mode != "Total" else "") + scope_label + basis_label
 
+    # ── Standout Strengths ───────────────────────────────────────────────
+    # Lead with the player's elite traits — surfaced at the metric level so a
+    # standout (e.g. a GK's Command / Big Chances Saved) shows even when the
+    # parent category grades as average.
+    _strength_peers = peers[peers["posicion"] == _peer_pos]
+    _strengths = _compute_standout_strengths(row_data, _strength_peers, _is_gk)
+    if _strengths:
+        st.markdown("---")
+        st.markdown(f"### 🌟 Standout Strengths{scope_label}")
+        st.caption(f"Where **{row['nombre']}** ranks among {_peer_pos}s — percentile vs peers.")
+        _scols = st.columns(len(_strengths))
+        for _sc, _s in zip(_scols, _strengths):
+            _v = _s["value"]
+            _vstr = f"{_v:.1f}" if isinstance(_v, (int, float)) else str(_v)
+            with _sc:
+                st.markdown(
+                    f"<div style='background:#1a1a2e;border-left:4px solid {_s['color']};"
+                    f"border-radius:8px;padding:12px 14px;'>"
+                    f"<div style='font-size:12px;color:#aaa;height:32px;'>{_s['label']}</div>"
+                    f"<div style='font-size:30px;font-weight:bold;color:{_s['color']};line-height:1.1;'>"
+                    f"{_s['pct']:.0f}<span style='font-size:13px;'>th</span></div>"
+                    f"<div style='font-size:11px;color:#ccc;'>{_s['tier']} · {_vstr}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
     # ── Pizza Chart ──────────────────────────────────────────────────────
     st.markdown("---")
     st.markdown(f"### 🍕 Percentile Pizza Chart{mode_label}")
@@ -3568,15 +3641,15 @@ def render_profile(data):
         with t1:
             ss = {m: round(row_data.get(m, 0) or 0, 2) for m in
                   ["Saves Made", "Save %",
-                   "Goals Prevented",
+                   "Goals Prevented", "PSxG+/-", "PSxG/Shot",
                    "Total Big Chances Saved",
-                   "Penalties Saved"] if m in peers.columns}
+                   "Penalties Saved", "Penalty Save %"] if m in peers.columns}
             if ss:
                 st.dataframe(pd.DataFrame([ss]).T.rename(columns={0: "Value"}), use_container_width=True)
         with t2:
             cmd = {m: round(row_data.get(m, 0) or 0, 2) for m in
-                   ["Catches", "Punches", "Aerial Duels won",
-                    "Aerial Duels", "Aerial Win %"] if m in peers.columns}
+                   ["Catches", "Punches", "Claim %", "Caught %",
+                    "Aerial Duels won", "Aerial Duels", "Aerial Win %"] if m in peers.columns}
             if cmd:
                 st.dataframe(pd.DataFrame([cmd]).T.rename(columns={0: "Value"}), use_container_width=True)
         with t3:
