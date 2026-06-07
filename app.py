@@ -2808,6 +2808,22 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
         labels=["Depth", "Rotation", "Starter"],
     ).astype(str)
 
+    # ── Top Strength: each player's #1 metric vs same-position peers ──────
+    # Uses the curated pizza pools (clean labels) and the Europe-wide per-metric
+    # percentile ranks already computed in _ov_mpct.
+    out["Top Strength"] = ""
+    for pos, mpct in _ov_mpct.items():
+        pool = GK_PIZZA_METRICS if pos == "Goalkeeper" else PIZZA_METRICS
+        label_map = {col: label for ml in pool.values() for (label, col) in ml}
+        cols = [c for c in label_map if c in mpct.columns]
+        if not cols:
+            continue
+        sub = mpct[cols]
+        best_col = sub.idxmax(axis=1)
+        best_pct = sub.max(axis=1)
+        for idx in sub.index:
+            out.at[idx, "Top Strength"] = f"{label_map[best_col[idx]]} ({best_pct[idx]:.0f}th)"
+
     # Attribute grade columns (vectorized)
     _outfield_attrs = list(ATTRIBUTE_GRADE_CATEGORIES.keys())
     _gk_attrs = list(GK_ATTRIBUTE_GRADE_CATEGORIES.keys())
@@ -3128,13 +3144,13 @@ def render_player_lab(data):
     _show_potential = grade_basis == "Potential Grade"
     if sel_leagues:
         display_cols = ["Player", "Team", "League", "Pos", "Role", "Squad Role",
-                        "League Grade", "League %ile"]
+                        "Top Strength", "League Grade", "League %ile"]
         if _show_potential:
             display_cols += ["Potential Grade", "Potential %ile"]
         display_cols += _attr_display + ["Market Value", "Salary"]
     else:
         display_cols = ["Player", "Team", "League", "Pos", "Role", "Squad Role",
-                        "Overall Grade", "Overall %ile",
+                        "Top Strength", "Overall Grade", "Overall %ile",
                         "League Grade", "League %ile"]
         if _show_potential:
             display_cols += ["Potential Grade", "Potential %ile"]
@@ -4473,6 +4489,36 @@ def render_gk_analysis(data):
         return
 
     scope_lbl = gka_mode
+
+    # ── Standout Strengths spotlight ─────────────────────────────────────
+    # Lead with a keeper's elite traits — surfaced at the metric level so
+    # strong command / big-chance saving shows even when overall shot-stopping
+    # rates are average.
+    st.markdown(f"### 🌟 Goalkeeper Spotlight ({scope_lbl})")
+    _gk_names = sorted(gks["nombre"].unique())
+    _spot_gk = st.selectbox("Highlight a goalkeeper", _gk_names, key="gka_spotlight")
+    if _spot_gk:
+        _spot_row = dict(gks[gks["nombre"] == _spot_gk].iloc[0])
+        _spot_strengths = _compute_standout_strengths(_spot_row, gks, True)
+        if _spot_strengths:
+            st.caption(f"Where **{_spot_gk}** ranks among the filtered goalkeepers — percentile vs peers.")
+            _spot_cols = st.columns(len(_spot_strengths))
+            for _c, _s in zip(_spot_cols, _spot_strengths):
+                _v = _s["value"]
+                _vstr = f"{_v:.1f}" if isinstance(_v, (int, float)) else str(_v)
+                with _c:
+                    st.markdown(
+                        f"<div style='background:#1a1a2e;border-left:4px solid {_s['color']};"
+                        f"border-radius:8px;padding:12px 14px;'>"
+                        f"<div style='font-size:12px;color:#aaa;height:32px;'>{_s['label']}</div>"
+                        f"<div style='font-size:30px;font-weight:bold;color:{_s['color']};line-height:1.1;'>"
+                        f"{_s['pct']:.0f}<span style='font-size:13px;'>th</span></div>"
+                        f"<div style='font-size:11px;color:#ccc;'>{_s['tier']} · {_vstr}</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+        else:
+            st.info(f"{_spot_gk} has no metric ranking in the top 30% of the filtered pool.")
 
     # ── Scatter: PSxG/Shot vs PSxG+/- ────────────────────────────────────
     st.markdown(f"### 📊 Shot Difficulty vs Goals Prevented ({scope_lbl})")
