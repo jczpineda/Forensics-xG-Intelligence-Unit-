@@ -1756,7 +1756,7 @@ _KPI_INVERTED_CATS = set()
 
 # Bump this string whenever role names/definitions change to invalidate the
 # 24-hour Player Lab cache immediately on redeployment.
-_ROLE_SCHEMA_VERSION = "v10"  # Ball Security: drop double-counted Pass %, down-weight for playmakers
+_ROLE_SCHEMA_VERSION = "v11"  # Key-Strengths uplift: reward elite standout metrics in the grade
 
 _ROLE_KPI_PROFILES = {
     # --- Striker roles ---
@@ -2677,6 +2677,47 @@ def _compute_standout_strengths(row_data, pos_peers, is_gk, n=4, min_pct=70):
     return out
 
 
+# ── Key-Strengths uplift ─────────────────────────────────────────────────────
+# A weighted-average grade washes out elite peaks, so a true specialist (e.g. a
+# 99th-pctl creator with average retention) reads as merely "good".  This adds a
+# small, capped bonus that rewards a player's elite standout metrics — the same
+# metrics shown in the Standout Strengths panel — so the grade leads with what a
+# player is genuinely elite at.  Average players (no metric >= 85th) are unchanged.
+_KEY_STRENGTH_BONUS_TIERS = [(95, 2.5), (90, 1.5), (85, 0.75)]
+_KEY_STRENGTH_BONUS_CAP = 6.0
+
+
+def _key_strength_bonus_from_pcts(pcts):
+    """Capped grade bonus from an iterable of metric percentiles."""
+    bonus = 0.0
+    for p in pcts:
+        if p is None:
+            continue
+        for thr, pts in _KEY_STRENGTH_BONUS_TIERS:
+            if p >= thr:
+                bonus += pts
+                break
+    return min(_KEY_STRENGTH_BONUS_CAP, round(bonus, 1))
+
+
+def _compute_key_strength_bonus(row_data, pos_peers, is_gk):
+    """Capped overall-grade bonus from a player's elite standout metrics."""
+    pool = GK_PIZZA_METRICS if is_gk else PIZZA_METRICS
+    if pos_peers is None or len(pos_peers) < 5:
+        return 0.0
+    pcts, seen = [], set()
+    for ml in pool.values():
+        for _, col in ml:
+            if col in seen or col not in pos_peers.columns:
+                continue
+            seen.add(col)
+            val = row_data.get(col)
+            val = 0 if val is None or (isinstance(val, float) and np.isnan(val)) else val
+            pv = pos_peers[col].fillna(0)
+            pcts.append((pv < val).sum() / len(pv) * 100)
+    return _key_strength_bonus_from_pcts(pcts)
+
+
 # ── UI: Player Lab ───────────────────────────────────────────────────────────
 
 # Grade ordering for slider
@@ -2973,6 +3014,26 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
                         out.loc[p_idx, "Overall %ile"] = gdf.loc[p_idx, ov_cols].mean(axis=1).round(1)
                     if lg_cols:
                         out.loc[p_idx, "League %ile"] = gdf.loc[p_idx, lg_cols].mean(axis=1).round(1)
+
+    # ── Key-Strengths uplift (vectorized) ────────────────────────────────
+    # Reward elite standout metrics so specialists aren't washed out by the
+    # weighted average.  Mirrors _compute_key_strength_bonus (cap +6).
+    def _vec_key_bonus(mpct_dict):
+        bonus = pd.Series(0.0, index=gdf.index)
+        for pos, mpct in mpct_dict.items():
+            pool = GK_PIZZA_METRICS if pos == "Goalkeeper" else PIZZA_METRICS
+            cols = [c for ml in pool.values() for (_, c) in ml if c in mpct.columns]
+            if not cols:
+                continue
+            sub = mpct[cols]
+            b = ((sub >= 95).sum(axis=1) * 2.5
+                 + ((sub >= 90) & (sub < 95)).sum(axis=1) * 1.5
+                 + ((sub >= 85) & (sub < 90)).sum(axis=1) * 0.75).clip(upper=6.0)
+            bonus.loc[sub.index] = b
+        return bonus
+
+    out["Overall %ile"] = (out["Overall %ile"] + _vec_key_bonus(_ov_mpct)).clip(upper=99.0).round(1)
+    out["League %ile"] = (out["League %ile"] + _vec_key_bonus(_lg_mpct)).clip(upper=99.0).round(1)
 
     out["Overall Grade"] = _vec_grade(out["Overall %ile"])
     out["League Grade"] = _vec_grade(out["League %ile"])
@@ -3321,8 +3382,13 @@ def render_profile(data):
     _exc_label, _exc_avg_pct, _exc_bonus_pts, _exc_tier = _compute_exceptional_contribution(
         grade_row, position, role, peers_all
     )
-    _display_pct = round(min(99.9, _overall_pct + _exc_bonus_pts), 1) if _exc_bonus_pts > 0 else _overall_pct
-    _display_grade = _percentile_to_grade(_display_pct) if _exc_bonus_pts > 0 else _overall_grade
+    # Key-Strengths uplift — reward elite standout metrics; combined uplift capped at +8.
+    _ks_bonus = _compute_key_strength_bonus(
+        grade_row, peers_all[peers_all["posicion"] == position], position == "Goalkeeper"
+    )
+    _total_bonus = min(8.0, _exc_bonus_pts + _ks_bonus)
+    _display_pct = round(min(99.9, _overall_pct + _total_bonus), 1) if _total_bonus > 0 else _overall_pct
+    _display_grade = _percentile_to_grade(_display_pct) if _total_bonus > 0 else _overall_grade
 
     # ── Squad Role (minutes-based) ────────────────────────────────────────
     _player_mins = row.get("Time Played", 0) or 0
@@ -3344,8 +3410,8 @@ def render_profile(data):
 
     # ── Header Card: [Photo | Name + Overall Grade] ────────────────────
     player_photo = _fetch_player_photo(row.get("nombre", "?"), team=row.get("equipo"))
-    _grade_title = "Overall Grade ⭐" if _exc_bonus_pts > 0 else "Overall Grade"
-    _pctl_suffix = f" (+{_exc_bonus_pts} bonus)" if _exc_bonus_pts > 0 else ""
+    _grade_title = "Overall Grade ⭐" if _total_bonus > 0 else "Overall Grade"
+    _pctl_suffix = f" (+{_total_bonus:.1f} bonus)" if _total_bonus > 0 else ""
     _pos_was = f" <em style='color:#aaa;'>(was {_orig_position})</em>" if _position_changed else ""
     _photo_html = (
         f"<img src='{player_photo}' width='130' style='border-radius:8px;flex-shrink:0;object-fit:cover;'/>"
@@ -3399,6 +3465,11 @@ def render_profile(data):
             unsafe_allow_html=True,
         )
     st.caption(f"Grade: {_stat_ctx} · vs {_basis_ctx} in {_scope_ctx}")
+    if _ks_bonus > 0:
+        st.caption(
+            f"⭐ Key-Strengths uplift: +{_ks_bonus:.1f} pctl for elite standout metrics "
+            f"(see Standout Strengths below)."
+        )
 
     # ── Market Value & Salary ────────────────────────────────────────────
     _player_team = row.get("equipo")
