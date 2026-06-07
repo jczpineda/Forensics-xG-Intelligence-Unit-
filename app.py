@@ -5505,13 +5505,19 @@ less certain the further out you look.
         )
     with c2:
         pool = df_total if league_sel == "All" else df_total[df_total["league_display"] == league_sel]
-        player_names = sorted(pool["nombre"].unique())
-        player_sel = st.selectbox("Player", player_names, key="pot_pl")
+        _opts = _player_options(pool)
+        _labels = [o[0] for o in _opts]
+        _sel_label = st.selectbox("Player", _labels, index=None,
+                                  placeholder="Select a player…", key="pot_pl")
 
-    if not player_sel:
+    if not _sel_label:
         return
 
-    row = pool[pool["nombre"] == player_sel].iloc[0]
+    player_sel, _sel_team = _opts[_labels.index(_sel_label)][1:]
+    _prow = pool[(pool["nombre"] == player_sel) & (pool["equipo"] == _sel_team)]
+    if _prow.empty:
+        _prow = pool[pool["nombre"] == player_sel]
+    row = _prow.iloc[0]
     orig_position = row.get("posicion", "Unknown")
     league = row.get("league_display", "")
     team = row.get("equipo", "Unknown")
