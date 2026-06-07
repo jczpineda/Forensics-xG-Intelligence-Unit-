@@ -4897,6 +4897,21 @@ def _chart_radar_rows(rows, metrics, title="Comparison"):
     return fig
 
 
+def _player_options(df_total):
+    """[(label, nombre, equipo)] for a player picker. Names shared by more than
+    one player (e.g. 'A. Onana' = André GK and Amadou MF) are disambiguated with
+    team + position so each is individually selectable."""
+    cols = [c for c in ("nombre", "equipo", "posicion") if c in df_total.columns]
+    sub = df_total[cols].dropna(subset=["nombre"]).drop_duplicates(subset=["nombre", "equipo"])
+    counts = sub["nombre"].value_counts()
+    opts = []
+    for _, r in sub.sort_values(["nombre", "equipo"]).iterrows():
+        nm, tm, pos = r["nombre"], r.get("equipo", ""), r.get("posicion", "")
+        label = f"{nm} — {tm} ({pos})" if counts.get(nm, 0) > 1 else nm
+        opts.append((label, nm, tm))
+    return opts
+
+
 def _render_cross_season(stat_mode, mode_label):
     """Compare players from different seasons side by side."""
     st.markdown("---")
@@ -4907,16 +4922,18 @@ def _render_cross_season(stat_mode, mode_label):
     seasons = get_available_seasons()
     n = st.slider("Number of players", 2, 4, 2, key="xs_n")
 
-    picks = []
+    picks = []  # (season, nombre, equipo)
     cols = st.columns(n)
     for i in range(n):
         with cols[i]:
             sea = st.selectbox(f"Season {i + 1}", seasons, key=f"xs_season_{i}")
-            names = sorted(load_data(sea)["total"]["nombre"].dropna().unique())
-            ply = st.selectbox(f"Player {i + 1}", names, index=None,
+            opts = _player_options(load_data(sea)["total"])
+            labels = [o[0] for o in opts]
+            lbl = st.selectbox(f"Player {i + 1}", labels, index=None,
                                placeholder="Select a player…", key=f"xs_player_{i}")
-            if ply:
-                picks.append((sea, ply))
+            if lbl:
+                _, nm, tm = opts[labels.index(lbl)]
+                picks.append((sea, nm, tm))
 
     if len(picks) < 2:
         st.info("Select at least **2 players** (each with a season) to compare.")
@@ -4924,12 +4941,16 @@ def _render_cross_season(stat_mode, mode_label):
 
     # Build one row per pick from that season's selected stat frame
     rows = []
-    for sea, ply in picks:
+    for sea, nm, tm in picks:
         sdf = _select_df(load_data(sea), stat_mode)
-        match = sdf[sdf["nombre"] == ply]
+        match = sdf[(sdf["nombre"] == nm) & (sdf["equipo"] == tm)]
+        if match.empty:
+            match = sdf[sdf["nombre"] == nm]
         if not match.empty:
+            if "Time Played" in match.columns:
+                match = match.sort_values("Time Played", ascending=False)
             row = match.iloc[0].copy()
-            row["_label"] = f"{ply} · {sea}"
+            row["_label"] = f"{nm} · {sea}"
             rows.append(row)
     if len(rows) < 2:
         st.warning("Couldn't load the selected players.")
@@ -5068,12 +5089,15 @@ def _render_find_similar(df, mode_label):
 
     # ── Selected player card ─────────────────────────────────────────────
     st.markdown("---")
-    st.markdown(f"### Players similar to **{player_sel}**")
-    st.caption(f"Profile: **{profile_sel}** | Metrics: {', '.join(avail_metrics)} | "
+    _season = st.session_state.get("sel_season", CURRENT_SEASON)
+    st.markdown(f"### Players similar to **{player_sel}**  ·  📅 {_season}")
+    st.caption(f"Season: **{_season}** | Profile: **{profile_sel}** | Metrics: {', '.join(avail_metrics)} | "
                f"Position: {position} {'(all positions searched)' if scope == 'All positions' else ''}")
 
     # ── Results table ────────────────────────────────────────────────────
-    show_cols = ["nombre", "equipo", "league_display", "posicion_detail", "Similarity %"] + avail_metrics
+    similar = similar.copy()
+    similar["Season"] = _season
+    show_cols = ["nombre", "Season", "equipo", "league_display", "posicion_detail", "Similarity %"] + avail_metrics
     show_cols = [c for c in show_cols if c in similar.columns]
     st.dataframe(similar[show_cols].reset_index(drop=True), use_container_width=True)
 
@@ -5784,6 +5808,7 @@ def main():
              "potential grading (current-season only).",
     )
     is_current = season == CURRENT_SEASON
+    st.session_state["sel_season"] = season
 
     # ── Possession-adjust toggle (raw by default) ────────────────────────
     padj_on = st.sidebar.toggle(
