@@ -853,20 +853,25 @@ def _fetch_player_photo(player_name, team=None):
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode())
-        players = data.get("player")
+        players = [p for p in (data.get("player") or [])
+                   if (p.get("strSport") or "").lower() == "soccer"]
         if players:
             def _photo(p):
                 return p.get("strCutout") or p.get("strThumb") or p.get("strRender")
-            # If team hint provided, prefer a player on that team
+            # If team hint provided, only accept a player on that team.
             if team:
                 team_lower = team.lower().replace(" fc", "").replace("fc ", "").strip()
                 for p in players:
                     p_team = (p.get("strTeam") or "").lower().replace(" fc", "").replace("fc ", "").strip()
-                    if team_lower in p_team or p_team in team_lower:
+                    if team_lower and p_team and (team_lower in p_team or p_team in team_lower):
                         photo = _photo(p)
                         if photo:
                             return photo
-            return _photo(players[0])
+            # No confident match: only trust a unique result. Guessing players[0]
+            # for a common surname returns the wrong face (e.g. every "Rodríguez"),
+            # so return None and let the UI show the initials avatar instead.
+            if len(players) == 1:
+                return _photo(players[0])
     except Exception:
         pass
     return None
@@ -3473,14 +3478,18 @@ def render_profile(data):
 
     # ── Market Value & Salary ────────────────────────────────────────────
     _player_team = row.get("equipo")
-    _fin = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV)).get(row["nombre"])
-    if _fin:
-        market_val = _fin["market_value"]
-        salary_val = _fin["salary"]
-    else:
+    _fin = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV)).get(row["nombre"]) or {}
+    market_val = _fin.get("market_value")
+    salary_val = _fin.get("salary")
+    # Fall back to a live (cached) fetch for any value missing from the CSV —
+    # ~72% of market values were never captured when the CSV was built, so this
+    # fills the gaps for players present-but-empty, not just absent ones.
+    if market_val is None or salary_val is None:
         _full_name = _resolve_full_name(row["nombre"], team=_player_team)
-        market_val = _fetch_transfermarkt_value(_full_name, team=_player_team)
-        salary_val = _fetch_capology_salary(_full_name, team=_player_team)
+        if market_val is None:
+            market_val = _fetch_transfermarkt_value(_full_name, team=_player_team)
+        if salary_val is None:
+            salary_val = _fetch_capology_salary(_full_name, team=_player_team)
     mv_col, sal_col = st.columns(2)
     with mv_col:
         st.metric("💰 Transfermarkt Market Value", market_val or "N/A")
