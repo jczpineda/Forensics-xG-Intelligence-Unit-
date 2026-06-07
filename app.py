@@ -279,9 +279,21 @@ def _build_team_lookup():
     return pd.DataFrame()
 
 
-def _load_league_opta(folder_path):
-    """Load a single jugadores_seasonstats.csv from an Opta league folder."""
-    csv_path = os.path.join(folder_path, "jugadores_seasonstats.csv")
+# Current season uses jugadores_seasonstats.csv; past seasons live in
+# jugadores_historical.csv (one file per league, filtered by 'temporada').
+CURRENT_SEASON = "2025-2026"
+
+
+def _load_league_season(folder_path, season):
+    """Load one league's data for a given season.
+
+    Current season -> jugadores_seasonstats.csv.
+    Past season    -> jugadores_historical.csv filtered to that 'temporada'.
+    """
+    if season == CURRENT_SEASON:
+        csv_path = os.path.join(folder_path, "jugadores_seasonstats.csv")
+    else:
+        csv_path = os.path.join(folder_path, "jugadores_historical.csv")
     if not os.path.exists(csv_path):
         return None
     try:
@@ -290,7 +302,26 @@ def _load_league_opta(folder_path):
         return None
     if df.empty:
         return None
-    return df
+    if season != CURRENT_SEASON and "temporada" in df.columns:
+        df = df[df["temporada"].astype(str) == season]
+    return df if not df.empty else None
+
+
+@st.cache_data(show_spinner=False)
+def get_available_seasons():
+    """List of selectable seasons, current first then past seasons (desc)."""
+    seasons = set()
+    for folder_name in LEAGUE_FOLDERS.values():
+        path = os.path.join(OPTA_DIR, folder_name, "jugadores_historical.csv")
+        if not os.path.exists(path):
+            continue
+        try:
+            t = pd.read_csv(path, encoding="utf-8-sig", usecols=["temporada"], low_memory=False)
+            seasons.update(str(x) for x in t["temporada"].dropna().unique())
+        except Exception:
+            pass
+    past = sorted((s for s in seasons if s and s != CURRENT_SEASON), reverse=True)
+    return [CURRENT_SEASON] + past
 
 
 def _compute_gk_derived(df):
@@ -373,13 +404,13 @@ def _compute_gk_derived(df):
 
 
 @st.cache_data(show_spinner="Loading football data...")
-def load_data():
-    """Load all Opta data.  Returns dict with 'total' and 'per90' DataFrames.
-    
+def load_data(season=CURRENT_SEASON):
+    """Load all Opta data for *season*.  Returns dict with 'total'/'per90' etc.
+
     Opta provides only season totals.  Per-90 values are computed from
     Time Played: stat_per90 = stat_total / (Time Played / 90).
     """
-    _CACHE_VERSION = 15  # position/role override in Player Profile
+    _CACHE_VERSION = 16  # season selector (current + historical)
 
     total_frames = []
 
@@ -388,7 +419,7 @@ def load_data():
         if not os.path.isdir(folder_path):
             continue
 
-        df = _load_league_opta(folder_path)
+        df = _load_league_season(folder_path, season)
         if df is not None and not df.empty:
             df["league_display"] = display_name
             total_frames.append(df)
@@ -3119,10 +3150,14 @@ def _select_df(data, stat_mode):
     return data[_STAT_MODE_MAP.get(stat_mode, "total")]
 
 
-def render_player_lab(data):
+def render_player_lab(data, is_current=True):
     df_total = data["total"]
     st.subheader("🔬 Player Lab")
-    st.caption("Filter players by position, role, grade, market value, and salary to find your ideal targets.")
+    if is_current:
+        st.caption("Filter players by position, role, grade, market value, and salary to find your ideal targets.")
+    else:
+        st.caption("Filter players by position, role, and grade. (Market value, salary and "
+                   "potential grade are current-season only.)")
 
     # Stat mode selector
     lab_stat_mode = st.radio("Stat mode", _STAT_MODES, horizontal=True, key="lab_stat_mode")
@@ -3188,10 +3223,14 @@ def render_player_lab(data):
     grade_col, grade_type_col = st.columns([3, 1])
     with grade_type_col:
         _attr_grade_cols = [c for c in lab_df.columns if c.endswith(" Grade") and c not in ("Overall Grade", "League Grade", "Potential Grade")]
-        grade_basis = st.selectbox("Grade type",
-            ["Overall Grade", "League Grade", "Potential Grade"] + _attr_grade_cols,
+        _grade_basis_opts = ["Overall Grade", "League Grade"]
+        if is_current:
+            _grade_basis_opts.append("Potential Grade")
+        _grade_basis_opts += _attr_grade_cols
+        grade_basis = st.selectbox("Grade type", _grade_basis_opts,
             key="lab_grade_type",
-            help="'Potential Grade' projects each player's grade forward using an age-based development curve. Individual attribute grades are vs same-league peers.")
+            help="Individual attribute grades are vs same-league peers."
+                 + (" 'Potential Grade' projects each player's grade forward using an age-based development curve." if is_current else ""))
     with grade_col:
         min_idx, max_idx = st.select_slider(
             "Grade range",
@@ -3202,16 +3241,19 @@ def render_player_lab(data):
         )
         min_grade_idx, max_grade_idx = min_idx, max_idx
 
-    # Market Value & Salary sliders
-    val1, val2 = st.columns(2)
-    with val1:
-        mv_range = st.slider("Transfermarkt Value (€M)", 0.0, 250.0, (0.0, 250.0),
-                              step=1.0, key="lab_mv_range")
-    with val2:
-        sal_range = st.slider("Gross Annual Salary (€M)", 0.0, 60.0, (0.0, 60.0),
-                               step=0.5, key="lab_sal_range")
-
-    enable_financials = (mv_range != (0.0, 250.0)) or (sal_range != (0.0, 60.0))
+    # Market Value & Salary sliders (current season only)
+    if is_current:
+        val1, val2 = st.columns(2)
+        with val1:
+            mv_range = st.slider("Transfermarkt Value (€M)", 0.0, 250.0, (0.0, 250.0),
+                                  step=1.0, key="lab_mv_range")
+        with val2:
+            sal_range = st.slider("Gross Annual Salary (€M)", 0.0, 60.0, (0.0, 60.0),
+                                   step=0.5, key="lab_sal_range")
+        enable_financials = (mv_range != (0.0, 250.0)) or (sal_range != (0.0, 60.0))
+    else:
+        mv_range, sal_range = (0.0, 250.0), (0.0, 60.0)
+        enable_financials = False
 
     # ── Apply filters ────────────────────────────────────────────────────
     filtered = lab_df.copy()
@@ -3279,28 +3321,30 @@ def render_player_lab(data):
             _kpi_attr_display = [f"{cat} Grade" for cat in _single_role_kpi.keys()
                                   if f"{cat} Grade" in filtered.columns]
     _attr_display = _kpi_attr_display if _kpi_attr_display else _generic_attr_display
+    # Financial columns are current-season only.
+    _fin_cols = ["Market Value", "Salary"] if is_current else []
     # When a specific league is selected, hide the Overall columns
-    _show_potential = grade_basis == "Potential Grade"
+    _show_potential = is_current and grade_basis == "Potential Grade"
     if sel_leagues:
         display_cols = ["Player", "Team", "League", "Pos", "Role", "Squad Role",
                         "Top Strength", "League Grade", "League %ile"]
         if _show_potential:
             display_cols += ["Potential Grade", "Potential %ile"]
-        display_cols += _attr_display + ["Market Value", "Salary"]
+        display_cols += _attr_display + _fin_cols
     else:
         display_cols = ["Player", "Team", "League", "Pos", "Role", "Squad Role",
                         "Top Strength", "Overall Grade", "Overall %ile",
                         "League Grade", "League %ile"]
         if _show_potential:
             display_cols += ["Potential Grade", "Potential %ile"]
-        display_cols += _attr_display + ["Market Value", "Salary"]
+        display_cols += _attr_display + _fin_cols
     show = filtered[[c for c in display_cols if c in filtered.columns]].reset_index(drop=True)
     st.dataframe(show, use_container_width=True, height=600)
 
 
 # ── UI: Player Profile ──────────────────────────────────────────────────────
 
-def render_profile(data):
+def render_profile(data, is_current=True):
     df_total = data["total"]
     df_per90 = data["per90"]
     st.subheader("🪪 Player Profile")
@@ -3504,25 +3548,26 @@ def render_profile(data):
             f"(see Standout Strengths below)."
         )
 
-    # ── Market Value & Salary ────────────────────────────────────────────
-    _player_team = row.get("equipo")
-    _fin = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV)).get(row["nombre"]) or {}
-    market_val = _fin.get("market_value")
-    salary_val = _fin.get("salary")
-    # Fall back to a live (cached) fetch for any value missing from the CSV —
-    # ~72% of market values were never captured when the CSV was built, so this
-    # fills the gaps for players present-but-empty, not just absent ones.
-    if market_val is None or salary_val is None:
-        _full_name = _resolve_full_name(row["nombre"], team=_player_team)
-        if market_val is None:
-            market_val = _fetch_transfermarkt_value(_full_name, team=_player_team)
-        if salary_val is None:
-            salary_val = _fetch_capology_salary(_full_name, team=_player_team)
-    mv_col, sal_col = st.columns(2)
-    with mv_col:
-        st.metric("💰 Transfermarkt Market Value", market_val or "N/A")
-    with sal_col:
-        st.metric("💶 Gross Annual Salary (Capology)", salary_val or "N/A")
+    # ── Market Value & Salary (current season only) ──────────────────────
+    if is_current:
+        _player_team = row.get("equipo")
+        _fin = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV)).get(row["nombre"]) or {}
+        market_val = _fin.get("market_value")
+        salary_val = _fin.get("salary")
+        # Fall back to a live (cached) fetch for any value missing from the CSV —
+        # ~72% of market values were never captured when the CSV was built, so this
+        # fills the gaps for players present-but-empty, not just absent ones.
+        if market_val is None or salary_val is None:
+            _full_name = _resolve_full_name(row["nombre"], team=_player_team)
+            if market_val is None:
+                market_val = _fetch_transfermarkt_value(_full_name, team=_player_team)
+            if salary_val is None:
+                salary_val = _fetch_capology_salary(_full_name, team=_player_team)
+        mv_col, sal_col = st.columns(2)
+        with mv_col:
+            st.metric("💰 Transfermarkt Market Value", market_val or "N/A")
+        with sal_col:
+            st.metric("💶 Gross Annual Salary (Capology)", salary_val or "N/A")
 
     # Scope: league-only or all leagues
     if scope_mode == "League":
@@ -5231,10 +5276,17 @@ def _project_potential(current_pct, age, club_tier, years=3):
 
 # ── UI: Potential Grading ─────────────────────────────────────────────────────
 
-def render_potential_grading(data):
+def render_potential_grading(data, is_current=True):
     """Project a player's future grade from their age, current form, and club environment."""
     df_total = data["total"]
     st.subheader("🌟 Potential Grading")
+    if not is_current:
+        st.info(
+            "🔒 Potential Grading is available for the current season only — it "
+            "projects a player's trajectory from their **current** form. Switch the "
+            "season selector back to the current season to use it."
+        )
+        return
     st.caption(
         "Forecasts a player's grade trajectory using their **current percentile rank**, "
         "an **age-based development curve**, and an optional **club/league environment boost**."
@@ -5599,20 +5651,37 @@ def main():
     st.title("🕵️ FORENSICS XG: INTELLIGENCE UNIT")
     st.markdown("#### WHERE THE BEAUTIFUL GAME MEETS HARD EVIDENCE.")
 
+    # ── Season selector ──────────────────────────────────────────────────
+    seasons = get_available_seasons()
+    season = st.sidebar.selectbox(
+        "📅 Season", seasons, index=0,
+        help="Pick a season. Past seasons exclude market values, salaries and "
+             "potential grading (current-season only).",
+    )
+    is_current = season == CURRENT_SEASON
+    if is_current:
+        st.caption(f"📅 Season: **{season}** (current · Opta)")
+    else:
+        st.caption(f"📅 Season: **{season}** (historical)")
+        st.sidebar.caption(
+            "ℹ️ Historical season — market values, salaries and potential "
+            "grading are available for the current season only."
+        )
+
     # Load data
-    data = load_data()
+    data = load_data(season)
     df_total = data["total"]
 
     if df_total.empty:
         # Diagnostic info for debugging cloud deployment
-        _diag_lines = [f"OPTA_DIR = {OPTA_DIR}"]
+        _diag_lines = [f"OPTA_DIR = {OPTA_DIR}", f"season = {season}"]
         for _dn, _fn in LEAGUE_FOLDERS.items():
             _fp = os.path.join(OPTA_DIR, _fn)
             _exists = os.path.isdir(_fp)
-            _csv = os.path.join(_fp, "jugadores_seasonstats.csv")
-            _csv_exists = os.path.exists(_csv)
-            _diag_lines.append(f"  {_dn}: dir={_exists}, csv={_csv_exists}")
-        st.error("No data found. Make sure the Opta league folders are in the correct directory.\n\n" + "\n".join(_diag_lines))
+            _src = "jugadores_seasonstats.csv" if is_current else "jugadores_historical.csv"
+            _csv_exists = os.path.exists(os.path.join(_fp, _src))
+            _diag_lines.append(f"  {_dn}: dir={_exists}, {_src}={_csv_exists}")
+        st.error("No data found for this season.\n\n" + "\n".join(_diag_lines))
         return
 
     # Tabs
@@ -5622,13 +5691,13 @@ def main():
     ])
 
     with tab_analysis:
-        render_player_lab(data)
+        render_player_lab(data, is_current=is_current)
     with tab_profile:
-        render_profile(data)
+        render_profile(data, is_current=is_current)
     with tab_gk:
         render_gk_analysis(data)
     with tab_potential:
-        render_potential_grading(data)
+        render_potential_grading(data, is_current=is_current)
     with tab_compare:
         render_player_comparison(data)
     with tab_team:
