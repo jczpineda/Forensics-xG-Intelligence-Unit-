@@ -1053,6 +1053,7 @@ PIZZA_METRICS = {
         ("Fwd Passes", "Forward Passes"),
         ("Key Passes", "Key Passes (Attempt Assists)"),
         ("Through Balls", "Through balls"),
+        ("Big Chances Created", "Total Big Chances Created"),
     ],
     "Progression": [
         ("Prog. Carries", "Progressive Carries"),
@@ -1549,6 +1550,7 @@ ATTRIBUTE_GRADE_CATEGORIES = {
                   "Duels won", "Duel %"],
     "Passing": ["Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
                 "Pass %", "Key Passes (Attempt Assists)", "Goal Assists",
+                "Total Big Chances Created",
                 "Successful Long Passes", "Long Pass %",
                 "Successful Crosses & Corners", "Cross %",
                 "Forward Passes", "Short Pass %"],
@@ -1845,7 +1847,7 @@ _ROLE_KPI_PROFILES = {
     },
     "Mezzala": {
         "Progression":      (0.30, ["Progressive Carries", "Forward Passes", "Final Third Touches"]),
-        "Attacking Output": (0.25, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)"]),
+        "Attacking Output": (0.25, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Total Big Chances Created"]),
         "Dribbling":        (0.20, ["Successful Dribbles", "Dribble %"]),
         "Defensive Work":   (0.15, ["Tackles Won", "Interceptions", "Recoveries"]),
         "Ball Security":    (0.10, ["Retention %", "Pass %"]),
@@ -1860,7 +1862,7 @@ _ROLE_KPI_PROFILES = {
     },
     "Box-to-Box Midfielder": {
         "Defensive Work":   (0.25, ["Tackles Won", "Interceptions", "Recoveries"]),
-        "Attacking Output": (0.20, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)"]),
+        "Attacking Output": (0.20, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Total Big Chances Created"]),
         "Progression":      (0.20, ["Progressive Carries", "Forward Passes", "Final Third Touches"]),
         "Duels":            (0.20, ["Duels won", "Duel %", "Ground Duels won", "Ground Duel %"]),
         "Ball Security":    (0.15, ["Retention %", "Pass %"]),
@@ -1876,7 +1878,7 @@ _ROLE_KPI_PROFILES = {
         "Passing Quality":  (0.25, ["Pass %", "Total Passes", "Forward Passes"]),
         "Defensive Work":   (0.20, ["Tackles Won", "Interceptions", "Recoveries"]),
         "Progression":      (0.20, ["Progressive Carries", "Forward Passes", "Final Third Touches"]),
-        "Attacking Output": (0.15, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)"]),
+        "Attacking Output": (0.15, ["Goals", "Goal Assists", "Key Passes (Attempt Assists)", "Total Big Chances Created"]),
         "Ball Security":    (0.20, ["Retention %", "Pass %"]),
     },
     "Ball Winning Midfielder": {
