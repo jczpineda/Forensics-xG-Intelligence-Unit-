@@ -1560,7 +1560,8 @@ ATTRIBUTE_GRADE_CATEGORIES = {
     "Ball Progression": ["Progressive Carries", "Carries",
                          "Through balls", "Final Third Touches",
                          "Forward Passes"],
-    "Passing Safety": ["Retention %", "Pass %", "Short Pass %",
+    # Pass % lives in "Passing" above — kept out here to avoid double-counting.
+    "Passing Safety": ["Retention %", "Short Pass %",
                        "Long Pass %", "Own Half Pass %"],
 }
 
@@ -1755,7 +1756,7 @@ _KPI_INVERTED_CATS = set()
 
 # Bump this string whenever role names/definitions change to invalidate the
 # 24-hour Player Lab cache immediately on redeployment.
-_ROLE_SCHEMA_VERSION = "v9"  # GK: Saves/90 + Clean Sheet % replace raw Saves Made
+_ROLE_SCHEMA_VERSION = "v10"  # Ball Security: drop double-counted Pass %, down-weight for playmakers
 
 _ROLE_KPI_PROFILES = {
     # --- Striker roles ---
@@ -1958,6 +1959,24 @@ _ROLE_KPI_PROFILES = {
         "Command":       (0.15, ["Catches", "Punches"]),
     },
 }
+
+# ── Ball Security refinement ─────────────────────────────────────────────────
+# (1) "Ball Security" measures ball RETENTION, not pass completion.  Pass % is
+#     already graded under each role's passing/distribution category, so strip
+#     it here to avoid double-counting a player's completion rate.
+# (2) Playmakers are paid to take risks — their lower retention should not
+#     dominate — so down-weight Ball Security for creative/playmaking roles.
+_PLAYMAKER_ROLES = {
+    "Central Midfielder", "Deep-Lying Playmaker", "Advanced Playmaker",
+    "Classic 10", "Trequartista", "Creative Winger", "Mezzala",
+}
+for _role, _cats in _ROLE_KPI_PROFILES.items():
+    if "Ball Security" in _cats:
+        _w, _mets = _cats["Ball Security"]
+        _mets = [m for m in _mets if m != "Pass %"]
+        if _role in _PLAYMAKER_ROLES:
+            _w = min(_w, 0.10)
+        _cats["Ball Security"] = (_w, _mets)
 
 GK_ATTRIBUTE_GRADE_CATEGORIES = {
     "Shot-Stopping": ["Saves/90", "Save %",
