@@ -4847,8 +4847,11 @@ def render_gk_analysis(data):
 def render_player_comparison(data):
     st.subheader("⚔️ Player Comparison")
 
-    compare_mode = st.radio("Mode", ["🔍 Find Similar Players", "⚔️ Compare Players"],
-                            horizontal=True, key="cmp_mode_sel")
+    compare_mode = st.radio(
+        "Mode",
+        ["🔍 Find Similar Players", "⚔️ Compare Players", "📅 Cross-Season Compare"],
+        horizontal=True, key="cmp_mode_sel",
+    )
 
     # ── Stat mode ────────────────────────────────────────────────────────
     stat_mode = st.radio("Stat mode", _STAT_MODES, horizontal=True, key="cmp_stat_mode")
@@ -4857,8 +4860,115 @@ def render_player_comparison(data):
 
     if compare_mode == "🔍 Find Similar Players":
         _render_find_similar(df, mode_label)
+    elif compare_mode == "📅 Cross-Season Compare":
+        _render_cross_season(stat_mode, mode_label)
     else:
         _render_head_to_head(df, mode_label)
+
+
+def _chart_radar_rows(rows, metrics, title="Comparison"):
+    """Radar chart from explicit player rows (each a Series with a '_label'),
+    normalized 0-100 vs the max among the selected players. Used for cross-season
+    comparison where players come from different season DataFrames."""
+    sel_max = {}
+    for m in metrics:
+        sel_max[m] = max((0 if pd.isna(r.get(m, 0)) else (r.get(m, 0) or 0)) for r in rows) or 1
+    fig = go.Figure()
+    for row in rows:
+        vals, raw_vals = [], []
+        for m in metrics:
+            v = row.get(m, 0)
+            v = 0 if pd.isna(v) else v
+            raw_vals.append(round(v, 2))
+            vals.append(round(v / sel_max[m] * 100, 1) if sel_max[m] > 0 else 0)
+        vals.append(vals[0])
+        raw_vals.append(raw_vals[0])
+        label = row.get("_label", row.get("nombre", "?"))
+        fig.add_trace(go.Scatterpolar(
+            r=vals, theta=metrics + [metrics[0]], fill="toself", name=label, opacity=0.6,
+            customdata=raw_vals, hoveron="points", marker=dict(size=6),
+            hovertemplate="<b>%{theta}</b><br>Value: %{customdata}<extra>" + label + "</extra>",
+        ))
+    _h = max(560, 420 + len(metrics) * 20)
+    fig.update_layout(
+        polar=dict(radialaxis=dict(visible=True, range=[0, 115], dtick=20)),
+        title=title, height=_h, template="plotly_white", showlegend=True, hovermode="closest",
+    )
+    return fig
+
+
+def _render_cross_season(stat_mode, mode_label):
+    """Compare players from different seasons side by side."""
+    st.markdown("---")
+    st.markdown("#### Compare players across different seasons")
+    st.caption("Pick each player and the season they played — values are normalized "
+               "vs the selected players, so it's a fair like-for-like stat comparison.")
+
+    seasons = get_available_seasons()
+    n = st.slider("Number of players", 2, 4, 2, key="xs_n")
+
+    picks = []
+    cols = st.columns(n)
+    for i in range(n):
+        with cols[i]:
+            sea = st.selectbox(f"Season {i + 1}", seasons, key=f"xs_season_{i}")
+            names = sorted(load_data(sea)["total"]["nombre"].dropna().unique())
+            ply = st.selectbox(f"Player {i + 1}", names, index=None,
+                               placeholder="Select a player…", key=f"xs_player_{i}")
+            if ply:
+                picks.append((sea, ply))
+
+    if len(picks) < 2:
+        st.info("Select at least **2 players** (each with a season) to compare.")
+        return
+
+    # Build one row per pick from that season's selected stat frame
+    rows = []
+    for sea, ply in picks:
+        sdf = _select_df(load_data(sea), stat_mode)
+        match = sdf[sdf["nombre"] == ply]
+        if not match.empty:
+            row = match.iloc[0].copy()
+            row["_label"] = f"{ply} · {sea}"
+            rows.append(row)
+    if len(rows) < 2:
+        st.warning("Couldn't load the selected players.")
+        return
+
+    # Metric group, restricted to metrics present across all selected seasons
+    group_sel = st.selectbox("Metric group", list(COMPARE_METRIC_GROUPS.keys()), key="xs_group")
+    common = set.intersection(*[set(r.index) for r in rows])
+    sel_metrics = [m for m in COMPARE_METRIC_GROUPS[group_sel] if m in common]
+    if len(sel_metrics) < 3:
+        st.warning("Not enough metrics common to all selected seasons for this group "
+                   "(older seasons track fewer metrics). Try another group.")
+        return
+
+    # ── Radar ──
+    st.markdown(f"### 🕸️ Radar — Cross-Season{mode_label}")
+    st.plotly_chart(_chart_radar_rows(rows, sel_metrics, f"Cross-Season Comparison{mode_label}"),
+                    use_container_width=True)
+
+    # ── Side-by-side table ──
+    st.markdown("### 📋 Side-by-Side Stats")
+    tbl = pd.DataFrame({r["_label"]: {m: round(r.get(m, 0) or 0, 2) for m in sel_metrics} for r in rows})
+    st.dataframe(tbl, use_container_width=True)
+
+    # ── Head-to-head difference (exactly 2 players) ──
+    if len(rows) == 2:
+        st.markdown("### 📊 Head-to-Head Difference")
+        diffs = [round((rows[0].get(m, 0) or 0) - (rows[1].get(m, 0) or 0), 2) for m in sel_metrics]
+        fig_diff = go.Figure(go.Bar(
+            x=sel_metrics, y=diffs,
+            marker_color=["#2d6a4f" if d >= 0 else "#e63946" for d in diffs],
+            text=[f"+{d}" if d > 0 else str(d) for d in diffs], textposition="outside",
+        ))
+        fig_diff.update_layout(
+            title=f"{rows[0]['_label']} minus {rows[1]['_label']}",
+            template="plotly_white", height=420, xaxis_tickangle=-45,
+            yaxis_title="Difference", margin=dict(b=120),
+        )
+        st.plotly_chart(fig_diff, use_container_width=True)
 
 
 def _render_find_similar(df, mode_label):
