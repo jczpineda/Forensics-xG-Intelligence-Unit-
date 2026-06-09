@@ -53,6 +53,9 @@ _FINANCIALS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Play
 # ── Player Photos CSV ────────────────────────────────────────────────────────
 _PHOTOS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_photos.csv")
 
+# ── Player Footedness CSV (from Transfermarkt, keyed by Opta id) ──────────────
+_FOOT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_footedness.csv")
+
 
 def _csv_mtime(path):
     """Return CSV file modification time as int (for cache-busting)."""
@@ -96,6 +99,21 @@ def _load_financials_csv(_bust=0):
                 "salary": sal if pd.notna(sal) and sal != "" else None,
             }
     return lookup
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_footedness_csv(_bust=0):
+    """Preferred foot (left/right/both) from Transfermarkt, keyed by Opta id."""
+    if not os.path.exists(_FOOT_CSV):
+        return {}
+    df = pd.read_csv(_FOOT_CSV, encoding="utf-8-sig", dtype=str, keep_default_na=False)
+    out = {}
+    for _, r in df.iterrows():
+        pid = (r.get("id") or "").strip()
+        foot = (r.get("foot") or "").strip().lower()
+        if pid and foot in ("left", "right", "both"):
+            out[pid] = foot
+    return out
 
 
 META_COLS = {"nombre", "posicion", "posicion_detail", "league_display", "Player",
@@ -3548,6 +3566,12 @@ def render_profile(data, is_current=True):
     _season_mins = _league_season_minutes(df_total).get(league, 34 * 90)
     _squad_role = _squad_role_label(_player_mins, _season_mins)
 
+    # Preferred foot (Transfermarkt, by id) — shown in the header if available.
+    _foot = _load_footedness_csv(_bust=_csv_mtime(_FOOT_CSV)).get(row.get("id"))
+    _foot_lbl = {"left": "🦶 Left-footed", "right": "🦶 Right-footed",
+                 "both": "🦶 Two-footed"}.get(_foot)
+    _foot_html = f" &middot; {_foot_lbl}" if _foot_lbl else ""
+
     # ── Build tooltip with sub-grade breakdown ────────────────────────
     _sub_lines = "&#10;".join(
         f"{attr}: {g} ({_ordinal(pct)})" for attr, (g, pct) in attr_grades.items() if pct is not None
@@ -3584,7 +3608,7 @@ def render_profile(data, is_current=True):
         f" &middot; <strong>Role:</strong> {role}</div>"
         f"<div style='margin-top:3px;font-size:0.92rem;color:#aaa;'>"
         f"<strong style='color:#ccc;'>Squad Role:</strong> {_squad_role}"
-        f" &middot; <strong style='color:#ccc;'>Minutes:</strong> {int(_player_mins):,}</div>"
+        f" &middot; <strong style='color:#ccc;'>Minutes:</strong> {int(_player_mins):,}{_foot_html}</div>"
         f"</div>"
         f"<span style='display:inline-flex;flex-direction:column;align-items:center;'>"
         f"<span style='font-size:12px;color:#aaa;display:flex;align-items:center;gap:4px;'>"
