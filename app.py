@@ -780,6 +780,30 @@ def load_data(season=CURRENT_SEASON):
     return _load_data_cached(season, _data_fingerprint())
 
 
+@st.cache_data(show_spinner=False)
+def _ambiguous_names(_bust=0):
+    """Display names whose ACCENT-FOLDED form is shared by more than one distinct
+    player id across all seasons — e.g. 'A. Onana' (André/Amadou) or 'Ederson'
+    (Man City GK) vs 'Éderson' (Atalanta MF). Such names can't be resolved by the
+    name-only photo override, so the photo lookup must disambiguate by team (or
+    fall back to the avatar). Returns the set of original display names."""
+    norm_ids, norm_names = {}, {}
+    for sea in get_available_seasons():
+        d = load_data(sea)["total"]
+        if d.empty or "id" not in d.columns:
+            continue
+        for nm, pid in zip(d["nombre"], d["id"]):
+            if isinstance(nm, str) and pid is not None and not pd.isna(pid):
+                key = _normalize_name(nm)
+                norm_ids.setdefault(key, set()).add(pid)
+                norm_names.setdefault(key, set()).add(nm)
+    amb = set()
+    for key, ids in norm_ids.items():
+        if len(ids) > 1:
+            amb |= norm_names[key]
+    return amb
+
+
 def filter_df(df, leagues=None, positions=None, positions_detail=None, teams=None):
     """Apply common filters."""
     out = df.copy()
@@ -932,13 +956,21 @@ def chart_pie(data, names, values, title, height=500):
 # ── Photo helper ─────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def _fetch_player_photo(player_name, team=None):
-    """Return a player photo URL, preferring manual CSV overrides over TheSportsDB."""
-    # 1. Check manual override CSV first
-    _photo_overrides = _load_photos_csv(_bust=_csv_mtime(_PHOTOS_CSV))
-    if player_name in _photo_overrides:
-        return _photo_overrides[player_name]
-    # 2. Fall back to TheSportsDB API
+def _fetch_player_photo(player_name, team=None, ambiguous=False):
+    """Return a player photo URL, preferring manual CSV overrides over TheSportsDB.
+
+    The override CSV is keyed by name only, so for a name shared by more than
+    one player (e.g. 'A. Onana' = André/Amadou, 'Ederson' = Man City GK/Atalanta)
+    it would return the wrong (usually more famous) face. When *ambiguous* is set
+    we skip the name-only override and require a team-matched live result —
+    falling back to the initials avatar rather than showing the wrong player.
+    """
+    # 1. Manual override CSV — trusted only for unambiguous names.
+    if not ambiguous:
+        _photo_overrides = _load_photos_csv(_bust=_csv_mtime(_PHOTOS_CSV))
+        if player_name in _photo_overrides:
+            return _photo_overrides[player_name]
+    # 2. TheSportsDB, team-disambiguated.
     try:
         q = urllib.parse.quote(player_name)
         url = f"https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p={q}"
@@ -959,10 +991,10 @@ def _fetch_player_photo(player_name, team=None):
                         photo = _photo(p)
                         if photo:
                             return photo
-            # No confident match: only trust a unique result. Guessing players[0]
-            # for a common surname returns the wrong face (e.g. every "Rodríguez"),
-            # so return None and let the UI show the initials avatar instead.
-            if len(players) == 1:
+            # No confident match: only trust a unique result, and never for an
+            # ambiguous name — guessing players[0] returns the wrong face
+            # (e.g. every "Rodríguez"). Return None → initials avatar instead.
+            if len(players) == 1 and not ambiguous:
                 return _photo(players[0])
     except Exception:
         pass
@@ -3526,7 +3558,9 @@ def render_profile(data, is_current=True):
     _basis_ctx = f"{role}s" if basis_mode == "Role" else f"{position}s"
 
     # ── Header Card: [Photo | Name + Overall Grade] ────────────────────
-    player_photo = _fetch_player_photo(row.get("nombre", "?"), team=row.get("equipo"))
+    _photo_amb = row.get("nombre") in _ambiguous_names(_bust=_data_fingerprint())
+    player_photo = _fetch_player_photo(row.get("nombre", "?"), team=row.get("equipo"),
+                                       ambiguous=_photo_amb)
     _grade_title = "Overall Grade ⭐" if _total_bonus > 0 else "Overall Grade"
     _pctl_suffix = f" (+{_total_bonus:.1f} bonus)" if _total_bonus > 0 else ""
     _pos_was = f" <em style='color:#aaa;'>(was {_orig_position})</em>" if _position_changed else ""
