@@ -5265,7 +5265,19 @@ def _render_find_similar(df, mode_label):
     similar["Season"] = _season
     show_cols = ["nombre", "Season", "equipo", "league_display", "posicion_detail", "Similarity %"] + avail_metrics
     show_cols = [c for c in show_cols if c in similar.columns]
-    st.dataframe(similar[show_cols].reset_index(drop=True), use_container_width=True)
+    show = similar[show_cols].reset_index(drop=True).copy()
+    # Missing values (metric not recorded / not tracked for that player or season,
+    # e.g. Progressive Carries in older seasons) → show "—" instead of a blank/NaN.
+    _missing_any = False
+    for m in avail_metrics:
+        if m in show.columns:
+            if show[m].isna().any():
+                _missing_any = True
+            show[m] = show[m].map(lambda v: "—" if pd.isna(v) else (round(v, 2) if isinstance(v, float) else v))
+    st.dataframe(show, use_container_width=True)
+    if _missing_any:
+        st.caption("“—” = metric not recorded for that player/season (e.g. some advanced "
+                   "metrics aren't tracked in older seasons). Similarity treats these as average.")
 
     # ── Radar: target player vs top 3 similar (explicit rows avoid name clashes)
     _tgt = player_row.copy()
