@@ -403,15 +403,28 @@ def _compute_gk_derived(df):
     return out
 
 
+def _data_fingerprint():
+    """Max mtime across all player CSVs — used as a cache-buster so load_data
+    (and trajectories) automatically re-read when the data files change on disk,
+    without needing a manual cache clear or app restart."""
+    mt = 0
+    for folder_name in LEAGUE_FOLDERS.values():
+        for fn in ("jugadores_seasonstats.csv", "jugadores_historical.csv"):
+            try:
+                mt = max(mt, int(os.path.getmtime(os.path.join(OPTA_DIR, folder_name, fn))))
+            except OSError:
+                pass
+    return mt
+
+
 @st.cache_data(show_spinner="Loading football data...")
-def load_data(season=CURRENT_SEASON):
+def _load_data_cached(season, _bust):
     """Load all Opta data for *season*.  Returns dict with 'total'/'per90' etc.
 
     Opta provides only season totals.  Per-90 values are computed from
     Time Played: stat_per90 = stat_total / (Time Played / 90).
+    *_bust* is a data fingerprint that invalidates the cache when CSVs change.
     """
-    _CACHE_VERSION = 16  # season selector (current + historical)
-
     total_frames = []
 
     for display_name, folder_name in LEAGUE_FOLDERS.items():
@@ -749,6 +762,11 @@ def load_data(season=CURRENT_SEASON):
         result["padj_per90"] = per90.copy()
 
     return result
+
+
+def load_data(season=CURRENT_SEASON):
+    """Public entry point — re-reads automatically when the CSVs change on disk."""
+    return _load_data_cached(season, _data_fingerprint())
 
 
 def filter_df(df, leagues=None, positions=None, positions_detail=None, teams=None):
@@ -3571,7 +3589,7 @@ def render_profile(data, is_current=True):
 
     # ── Career trajectory sparkline (overall %ile across seasons) ─────────
     _pid = row.get("id")
-    _traj = _build_trajectory(_pid) if (_pid is not None and not pd.isna(_pid)) else []
+    _traj = _build_trajectory(_pid, _bust=_data_fingerprint()) if (_pid is not None and not pd.isna(_pid)) else []
     _rel_traj = [t for t in _traj if t["reliable"] and t["pct"] is not None]
     if len(_rel_traj) >= 2:
         _spx = [f"{t['season'][2:4]}-{t['season'][7:9]}" for t in _rel_traj]
@@ -5443,7 +5461,7 @@ def _overall_pct_for_row(row_data, position, season_df, role):
 
 
 @st.cache_data(show_spinner="Building career trajectory…")
-def _build_trajectory(player_id, min_minutes=600, _schema=_ROLE_SCHEMA_VERSION):
+def _build_trajectory(player_id, min_minutes=600, _schema=_ROLE_SCHEMA_VERSION, _bust=0):
     """Per-season overall percentile for a player, tracked by stable Opta id.
     Returns chronological [{season, pct, mins, team, role, reliable}].
     Seasons below *min_minutes* are kept (for context) but flagged unreliable."""
@@ -5660,7 +5678,7 @@ less certain the further out you look.
 
     # ── Multi-season trajectory & form momentum (tracked by stable id) ────
     _pid = row.get("id")
-    _traj = _build_trajectory(_pid) if (_pid is not None and not pd.isna(_pid)) else []
+    _traj = _build_trajectory(_pid, _bust=_data_fingerprint()) if (_pid is not None and not pd.isna(_pid)) else []
     # Anchor the current season's point to the displayed grade (user role/pos).
     for _t in _traj:
         if _t["season"] == CURRENT_SEASON:
