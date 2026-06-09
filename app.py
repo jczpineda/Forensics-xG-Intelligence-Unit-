@@ -3569,6 +3569,35 @@ def render_profile(data, is_current=True):
             "dominant sides face fewer defensive actions)."
         )
 
+    # ── Career trajectory sparkline (overall %ile across seasons) ─────────
+    _pid = row.get("id")
+    _traj = _build_trajectory(_pid) if (_pid is not None and not pd.isna(_pid)) else []
+    _rel_traj = [t for t in _traj if t["reliable"] and t["pct"] is not None]
+    if len(_rel_traj) >= 2:
+        _spx = [f"{t['season'][2:4]}-{t['season'][7:9]}" for t in _rel_traj]
+        _spy = [t["pct"] for t in _rel_traj]
+        _cur_season = st.session_state.get("sel_season", CURRENT_SEASON)
+        _cur_lbl = f"{_cur_season[2:4]}-{_cur_season[7:9]}"
+        _spark = go.Figure(go.Scatter(
+            x=_spx, y=_spy, mode="lines+markers+text",
+            text=[f"{v:.0f}" for v in _spy], textposition="top center",
+            textfont=dict(size=10, color="#9aa7b8"),
+            line=dict(color="#52b788", width=2),
+            marker=dict(size=[11 if x == _cur_lbl else 7 for x in _spx],
+                        color=["#f4a261" if x == _cur_lbl else "#52b788" for x in _spx]),
+            hovertemplate="<b>%{x}</b><br>Overall %ile: %{y:.0f}<extra></extra>",
+        ))
+        _spark.update_layout(
+            height=140, margin=dict(t=28, b=24, l=34, r=20),
+            paper_bgcolor="#1a1a2e", plot_bgcolor="#1a1a2e", font=dict(color="#ccc"),
+            title=dict(text="📈 Career trajectory — overall %ile by season",
+                       font=dict(size=12, color="#aaa")),
+            yaxis=dict(range=[0, 105], gridcolor="rgba(255,255,255,0.06)"),
+            xaxis=dict(showgrid=False),
+            showlegend=False,
+        )
+        st.plotly_chart(_spark, use_container_width=True)
+
     # ── Market Value & Salary (current season only) ──────────────────────
     if is_current:
         _player_team = row.get("equipo")
