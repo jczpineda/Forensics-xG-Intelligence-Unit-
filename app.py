@@ -5393,20 +5393,77 @@ def _get_age_growth(age):
     return -6.0, "📉 Late Career"
 
 
-def _project_potential(current_pct, age, club_tier, years=3):
+def _overall_pct_for_row(row_data, position, season_df, role):
+    """Europe-wide overall percentile for one player in one season's data —
+    the same KPI/position-weighted calculation the Potential tab uses for the
+    current season, reused to build the multi-season trajectory."""
+    g = _compute_attribute_grades(row_data, position, season_df, league=None, kpi_role=role)
+    if position == "Goalkeeper":
+        weights = _ROLE_GRADE_WEIGHTS.get(role, {})
+    else:
+        kpi = _ROLE_KPI_PROFILES.get(role)
+        weights = {n: w for n, (w, _) in kpi.items()} if kpi else _POSITION_GRADE_WEIGHTS.get(position, {})
+    pcts = {k: pct for k, (_, pct) in g.items() if pct is not None}
+    if not pcts:
+        return 0.0
+    if weights:
+        ws = sum(weights.get(k, 0) for k in pcts)
+        if ws > 0:
+            return sum(pcts[k] * weights.get(k, 0) for k in pcts) / ws
+    return sum(pcts.values()) / len(pcts)
+
+
+@st.cache_data(show_spinner="Building career trajectory…")
+def _build_trajectory(player_id, min_minutes=600, _schema=_ROLE_SCHEMA_VERSION):
+    """Per-season overall percentile for a player, tracked by stable Opta id.
+    Returns chronological [{season, pct, mins, team, role, reliable}].
+    Seasons below *min_minutes* are kept (for context) but flagged unreliable."""
+    traj = []
+    for sea in sorted(get_available_seasons()):  # chronological ascending
+        d = load_data(sea)["total"]
+        if d.empty or "id" not in d.columns:
+            continue
+        m = d[d["id"] == player_id]
+        if m.empty:
+            continue
+        r = m.iloc[0]
+        mins = int(r.get("Time Played", 0) or 0)
+        pos = r.get("posicion", "Unknown")
+        role = _classify_role(r, pos, d)
+        reliable = mins >= min_minutes
+        pct = round(_overall_pct_for_row(dict(r), pos, d, role), 1) if reliable else None
+        traj.append({"season": sea, "pct": pct, "mins": mins,
+                     "team": r.get("equipo", ""), "role": role, "reliable": reliable})
+    return traj
+
+
+def _trajectory_momentum(reliable_pcts):
+    """Annual momentum (pctl pts/yr) + confidence (0-1) from a chronological list
+    of reliable season percentiles. Slope via least-squares, clamped to ±8."""
+    n = len(reliable_pcts)
+    if n < 2:
+        return 0.0, 0.0, n
+    xs = list(range(n))
+    slope = float(np.polyfit(xs, reliable_pcts, 1)[0])
+    slope = max(-8.0, min(8.0, slope))
+    conf = {2: 0.5, 3: 0.75}.get(n, 0.9)  # 4+ seasons → high confidence
+    return round(slope, 2), conf, n
+
+
+def _project_potential(current_pct, age, club_tier, years=3, momentum=0.0, momentum_conf=0.0):
     """Year-by-year potential projection.
 
-    Returns a list of dicts with keys: year, pct, grade, phase, notes.
-    Year 0 = current season.  Years 1..N are projections.
+    Blends the age-development curve with the player's observed form *momentum*
+    (from their multi-season trajectory). Momentum dominates the near term in
+    proportion to its confidence, then regresses toward the age curve over the
+    horizon. With momentum_conf=0 this reduces to the pure age-curve model.
 
-    Club boost is phased in:
-      Year 1: 30 % of boost applied, minus the full adaptation dip.
-      Year 2: 65 % of boost applied.
-      Year 3+: 100 % of boost applied.
+    Club boost is phased in: Yr1 30 % (minus the adaptation dip), Yr2 65 %, Yr3+ 100 %.
     """
     tier = _CLUB_TIERS.get(club_tier, _CLUB_TIERS["No major change"])
     ceiling_boost = tier["ceiling_boost"]
     year1_dip = tier["year1_dip"]
+    _MOM_DECAY = 0.55  # momentum's weight halves-ish each projected year
 
     _phase_label = _get_age_growth(age)[1]
     projections = [
@@ -5422,7 +5479,10 @@ def _project_potential(current_pct, age, club_tier, years=3):
     cumulative_growth = 0.0
     for yr in range(1, years + 1):
         yr_growth, yr_phase = _get_age_growth(age + yr)
-        cumulative_growth += yr_growth
+        # Blend age growth with observed momentum (decaying weight by year).
+        mw = momentum_conf * (_MOM_DECAY ** (yr - 1))
+        eff_growth = (1 - mw) * yr_growth + mw * momentum
+        cumulative_growth += eff_growth
 
         # Club environment effect — phased in over 3 seasons
         if ceiling_boost != 0:
@@ -5439,10 +5499,12 @@ def _project_potential(current_pct, age, club_tier, years=3):
 
         notes = []
         if club_effect < 0:
-            notes.append(f"Adaptation dip ({club_effect:+.0f} pctl)")
+            notes.append(f"Adaptation dip ({club_effect:+.0f})")
         elif club_effect > 0:
-            notes.append(f"Club boost (+{club_effect:.0f} pctl)")
-        if yr_growth > 0:
+            notes.append(f"Club boost (+{club_effect:.0f})")
+        if mw >= 0.1 and abs(momentum) >= 0.5:
+            notes.append(f"Form trend ({momentum:+.1f}/yr)")
+        elif yr_growth > 0:
             notes.append(f"Age growth (+{yr_growth:.1f}/yr)")
         elif yr_growth < 0:
             notes.append(f"Age decline ({yr_growth:.1f}/yr)")
@@ -5472,18 +5534,24 @@ def render_potential_grading(data, is_current=True):
         )
         return
     st.caption(
-        "Forecasts a player's grade trajectory using their **current percentile rank**, "
+        "Forecasts a player's grade trajectory from their **multi-season form momentum**, "
         "an **age-based development curve**, and an optional **club/league environment boost**."
     )
     with st.expander("ℹ️ How it works", expanded=False):
         st.markdown(
             """
-**Data basis:** Grades come from Europe-wide percentile rankings vs same-position peers
-using the current 2025-26 Opta season (single season).  In future releases, multi-season
-trends will refine the trajectory further.
+**Data basis:** Grades are Europe-wide percentile rankings vs same-position peers. The model
+now tracks each player across seasons (2020-21 → present) by their stable Opta id to read
+their **actual form trajectory**, not just a single snapshot.
+
+**Form momentum (new):** The season-over-season slope of the player's overall percentile is
+blended into the forecast — a player genuinely improving gets a higher ceiling; a declining
+one is tempered. Momentum is confidence-weighted (more reliable seasons = more weight) and
+regresses toward the age curve over the horizon. Seasons under ~600 minutes are ignored.
 
 **Age curve:** Each age bracket carries a growth rate (e.g. a 19-year-old gains ~+7 percentile
-points per year in ideal conditions; a 31-year-old loses ~3/yr).
+points per year in ideal conditions; a 31-year-old loses ~3/yr). It anchors the long-term
+trend once near-term momentum fades.
 
 **Club/League environment:** Joining an elite club (e.g. Belgian league → Manchester United)
 triggers a ceiling boost because better coaching, training facilities and teammates accelerate
@@ -5561,6 +5629,16 @@ less certain the further out you look.
     current_pct = round(current_pct, 1)
     current_grade = _percentile_to_grade(current_pct)
 
+    # ── Multi-season trajectory & form momentum (tracked by stable id) ────
+    _pid = row.get("id")
+    _traj = _build_trajectory(_pid) if (_pid is not None and not pd.isna(_pid)) else []
+    # Anchor the current season's point to the displayed grade (user role/pos).
+    for _t in _traj:
+        if _t["season"] == CURRENT_SEASON:
+            _t["pct"], _t["reliable"] = current_pct, True
+    _reliable_traj = [t for t in _traj if t["reliable"] and t["pct"] is not None]
+    _mom, _mom_conf, _n_seasons = _trajectory_momentum([t["pct"] for t in _reliable_traj])
+
     st.markdown("---")
     st.markdown("### 2️⃣ Age & Environment")
 
@@ -5612,12 +5690,36 @@ less certain the further out you look.
             f"*(Ceiling {_boost_sign}{tier_data['ceiling_boost']} pctl pts{_dip_txt})*"
         )
 
-    # ── Run projection ───────────────────────────────────────────────────
-    projections = _project_potential(current_pct, int(age), club_move, years=int(years_ahead))
+    # ── Run projection (age curve blended with multi-season momentum) ─────
+    projections = _project_potential(current_pct, int(age), club_move, years=int(years_ahead),
+                                     momentum=_mom, momentum_conf=_mom_conf)
     _curr_phase = _get_age_growth(int(age))[1]
 
     st.markdown("---")
     st.markdown("### 3️⃣ Grade Projection")
+
+    # ── Form-trend banner (multi-season momentum) ────────────────────────
+    if _n_seasons < 2:
+        _trend_lbl, _trend_color = "Insufficient history — age curve only", "#888"
+    elif _mom >= 2:
+        _trend_lbl, _trend_color = f"Rising (+{_mom:.1f} pctl/yr)", "#00e676"
+    elif _mom <= -2:
+        _trend_lbl, _trend_color = f"Declining ({_mom:.1f} pctl/yr)", "#e63946"
+    else:
+        _trend_lbl, _trend_color = f"Stable ({_mom:+.1f} pctl/yr)", "#ffd740"
+    _conf_lbl = {0.5: "low", 0.75: "medium", 0.9: "high"}.get(_mom_conf, "—")
+    _hist_txt = " → ".join(f"{t['season'][2:4]}-{t['season'][7:9]}: {t['pct']:.0f}"
+                           for t in _reliable_traj) or "—"
+    st.markdown(
+        f"<div style='background:rgba(255,255,255,0.04);border-left:4px solid {_trend_color};"
+        f"border-radius:6px;padding:8px 14px;margin-bottom:6px;font-size:13px;color:#eee;'>"
+        f"📈 <strong>Form trend:</strong> <span style='color:{_trend_color};font-weight:bold;'>"
+        f"{_trend_lbl}</span> over {_n_seasons} season{'s' if _n_seasons != 1 else ''} "
+        f"({_conf_lbl} confidence)"
+        f"<br><span style='font-size:11px;color:#999;'>Overall %ile by season: {_hist_txt}</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
     # ── Header cards: Current + Projected ───────────────────────────────
     _curr_color = _GRADE_COLORS.get(current_grade, "#888")
@@ -5668,46 +5770,62 @@ less certain the further out you look.
     # ── Trajectory chart ─────────────────────────────────────────────────
     st.markdown("#### 📈 Grade Trajectory")
 
-    years_labels = [p["year"] for p in projections]
-    pct_values = [p["pct"] for p in projections]
-    grade_labels = [p["grade"] for p in projections]
-    bar_colors = [_GRADE_COLORS.get(p["grade"], "#888") for p in projections]
+    # Actual past seasons (reliable, excluding the current one) → real history.
+    _past = [t for t in _reliable_traj if t["season"] != CURRENT_SEASON]
+    _past_labels = [f"{t['season'][2:4]}-{t['season'][7:9]}" for t in _past]
+    _past_y = [t["pct"] for t in _past]
 
-    # Uncertainty band widens with each projected year
-    band_widths = [3 + i * 5 for i in range(len(projections))]
-    upper_band = [min(99, v + bw) for v, bw in zip(pct_values, band_widths)]
-    lower_band = [max(0, v - bw) for v, bw in zip(pct_values, band_widths)]
+    proj_labels = [p["year"] for p in projections]      # ["Now","+1 yr",...]
+    proj_y = [p["pct"] for p in projections]
+    proj_grades = [p["grade"] for p in projections]
+
+    # Actual segment = past seasons + "Now"; projected segment starts at "Now".
+    actual_x = _past_labels + ["Now"]
+    actual_y = _past_y + [current_pct]
+    fut_x = proj_labels                                 # "Now" + future
+    fut_y = proj_y
 
     fig_proj = go.Figure()
 
+    # Uncertainty band over the projected (future) portion only — widens by year.
+    _bw = [3 + i * 5 for i in range(len(fut_x))]
+    _upper = [min(99, v + b) for v, b in zip(fut_y, _bw)]
+    _lower = [max(0, v - b) for v, b in zip(fut_y, _bw)]
     fig_proj.add_trace(go.Scatter(
-        x=years_labels + years_labels[::-1],
-        y=upper_band + lower_band[::-1],
-        fill="toself",
-        fillcolor="rgba(45,106,79,0.12)",
-        line=dict(color="rgba(0,0,0,0)"),
-        name="Uncertainty range",
-        showlegend=True,
-        hoverinfo="skip",
+        x=fut_x + fut_x[::-1], y=_upper + _lower[::-1],
+        fill="toself", fillcolor="rgba(45,106,79,0.12)",
+        line=dict(color="rgba(0,0,0,0)"), name="Uncertainty range",
+        showlegend=True, hoverinfo="skip",
     ))
 
+    # Actual history (solid line, filled markers)
+    if _past_labels:
+        fig_proj.add_trace(go.Scatter(
+            x=actual_x, y=actual_y, mode="lines+markers+text",
+            marker=dict(size=13, color=[_GRADE_COLORS.get(_percentile_to_grade(v), "#888") for v in actual_y],
+                        line=dict(width=2, color="#1a1a2e")),
+            line=dict(color="#9aa7b8", width=2.5),
+            text=[_percentile_to_grade(v) for v in actual_y], textposition="top center",
+            textfont=dict(size=13, color="#ccd", family="Arial Black"),
+            name="Actual (past seasons)",
+            customdata=[[_percentile_to_grade(v), _ordinal(v)] for v in actual_y],
+            hovertemplate="<b>%{x}</b><br>Grade: %{customdata[0]}<br>Percentile: %{customdata[1]}<extra>Actual</extra>",
+        ))
+
+    # Projection (dashed line, open markers)
     fig_proj.add_trace(go.Scatter(
-        x=years_labels,
-        y=pct_values,
-        mode="lines+markers+text",
-        marker=dict(size=14, color=bar_colors, line=dict(width=2, color="#1a1a2e")),
-        line=dict(color="#52b788", width=2.5),
-        text=grade_labels,
-        textposition="top center",
+        x=fut_x, y=fut_y, mode="lines+markers+text",
+        marker=dict(size=14, symbol="circle-open",
+                    color=[_GRADE_COLORS.get(g, "#888") for g in proj_grades],
+                    line=dict(width=3, color="#52b788")),
+        line=dict(color="#52b788", width=2.5, dash="dash"),
+        text=proj_grades, textposition="bottom center",
         textfont=dict(size=14, color="#f4a261", family="Arial Black"),
-        name="Projected percentile",
+        name="Projected",
         customdata=[[p["grade"], _ordinal(p["pct"]), p["notes"]] for p in projections],
         hovertemplate=(
-            "<b>%{x}</b><br>"
-            "Grade: %{customdata[0]}<br>"
-            "Percentile: %{customdata[1]}<br>"
-            "%{customdata[2]}"
-            "<extra></extra>"
+            "<b>%{x}</b><br>Grade: %{customdata[0]}<br>Percentile: %{customdata[1]}<br>"
+            "%{customdata[2]}<extra>Projected</extra>"
         ),
     ))
 
@@ -5733,7 +5851,9 @@ less certain the further out you look.
             range=[0, 105],
             gridcolor="rgba(255,255,255,0.06)",
         ),
-        xaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
+        xaxis=dict(gridcolor="rgba(255,255,255,0.06)",
+                   categoryorder="array",
+                   categoryarray=_past_labels + proj_labels),  # past → Now → future
         height=440,
         legend=dict(font=dict(color="#eee")),
         margin=dict(t=40, b=40, l=60, r=80),
@@ -5780,6 +5900,12 @@ less certain the further out you look.
                 "Impact": (
                     f"{'+' if _curr_growth >= 0 else ''}{_curr_growth:.1f} pctl pts / yr"
                 ),
+            },
+            {
+                "Factor": "Form Trend (multi-season)",
+                "Value": (f"{_n_seasons} reliable seasons · {_conf_lbl} conf"
+                          if _n_seasons >= 2 else "Insufficient history"),
+                "Impact": (f"{_mom:+.1f} pctl pts / yr" if _n_seasons >= 2 else "—"),
             },
         ]
         if tier_data["ceiling_boost"] != 0:
