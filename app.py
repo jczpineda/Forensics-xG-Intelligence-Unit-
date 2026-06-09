@@ -1903,7 +1903,7 @@ _KPI_INVERTED_CATS = set()
 
 # Bump this string whenever role names/definitions change to invalidate the
 # 24-hour Player Lab cache immediately on redeployment.
-_ROLE_SCHEMA_VERSION = "v13"  # Squad Role by share-of-season minutes (60/30)
+_ROLE_SCHEMA_VERSION = "v14"  # Player Lab: Foot + Top Strength filters
 
 _ROLE_KPI_PROFILES = {
     # --- Striker roles ---
@@ -2917,7 +2917,7 @@ def _fmt_euros(val):
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_schema=""):
+def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_schema="", foot_bust=0):
     """Pre-compute grades and roles for every player (vectorized, cached 24 h).
 
     *grade_df* is the DataFrame used for percentile grading (Total or Per 90).
@@ -3053,6 +3053,15 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
         best_pct = sub.max(axis=1)
         for idx in sub.index:
             out.at[idx, "Top Strength"] = f"{label_map[best_col[idx]]} ({_ordinal(best_pct[idx])})"
+
+    # Preferred foot (Transfermarkt, joined by stable id)
+    _foot = _load_footedness_csv(_bust=foot_bust)
+    _foot_lbl = {"left": "Left", "right": "Right", "both": "Two-footed"}
+    out["Foot"] = (gdf["id"].map(lambda p: _foot_lbl.get(_foot.get(p), ""))
+                   if "id" in gdf.columns else "")
+
+    # Top Strength metric name only (for filtering), e.g. "Big Chances Created"
+    out["_top_metric"] = out["Top Strength"].str.replace(r"\s*\(.*\)$", "", regex=True)
 
     # Attribute grade columns (vectorized)
     _outfield_attrs = list(ATTRIBUTE_GRADE_CATEGORIES.keys())
@@ -3260,7 +3269,7 @@ def render_player_lab(data, is_current=True):
 
     # Build / retrieve the grade table
     with st.spinner("Computing player grades…"):
-        lab_df = _build_player_lab_table(grade_src, df_total, mode_label=lab_stat_mode, pot_years=pot_years, role_schema=_ROLE_SCHEMA_VERSION)
+        lab_df = _build_player_lab_table(grade_src, df_total, mode_label=lab_stat_mode, pot_years=pot_years, role_schema=_ROLE_SCHEMA_VERSION, foot_bust=_csv_mtime(_FOOT_CSV))
 
     # ── Filters ──────────────────────────────────────────────────────────
     f1, f2, f3, f4 = st.columns(4)
@@ -3302,6 +3311,19 @@ def render_player_lab(data, is_current=True):
         sel_squad_roles = st.multiselect("Squad Role", ["Starter", "Rotation", "Depth"],
                                          default=[], key="lab_squad_roles",
                                          help="Share of the season's minutes — Starter ≥60% · Rotation 30–60% · Depth <30%")
+
+    # Second filter row: preferred foot + top strength
+    g1, g2 = st.columns(2)
+    with g1:
+        _foot_opts = [f for f in ["Right", "Left", "Two-footed"]
+                      if (lab_df["Foot"] == f).any()]
+        sel_feet = st.multiselect("Preferred foot", _foot_opts, default=[], key="lab_feet",
+                                  help="Player's stronger foot (via Transfermarkt).")
+    with g2:
+        _strength_pool = lab_df[lab_df["Position"].isin(sel_positions)] if sel_positions else lab_df
+        _strength_opts = sorted(s for s in _strength_pool["_top_metric"].dropna().unique() if s)
+        sel_strengths = st.multiselect("Top strength", _strength_opts, default=[], key="lab_strengths",
+                                       help="Filter to players whose #1 percentile metric is one of these.")
 
     # Grade range selector
     grade_col, grade_type_col = st.columns([3, 1])
@@ -3349,6 +3371,10 @@ def render_player_lab(data, is_current=True):
         filtered = filtered[filtered["Role"].isin(sel_roles)]
     if sel_squad_roles:
         filtered = filtered[filtered["Squad Role"].isin(sel_squad_roles)]
+    if sel_feet:
+        filtered = filtered[filtered["Foot"].isin(sel_feet)]
+    if sel_strengths:
+        filtered = filtered[filtered["_top_metric"].isin(sel_strengths)]
 
     # Grade filter
     filtered["_grade_idx"] = filtered[grade_basis].map(_GRADE_TO_IDX)
@@ -3410,13 +3436,13 @@ def render_player_lab(data, is_current=True):
     # When a specific league is selected, hide the Overall columns
     _show_potential = is_current and grade_basis == "Potential Grade"
     if sel_leagues:
-        display_cols = ["Player", "Team", "League", "Pos", "Role", "Squad Role",
+        display_cols = ["Player", "Team", "League", "Pos", "Foot", "Role", "Squad Role",
                         "Top Strength", "League Grade", "League %ile"]
         if _show_potential:
             display_cols += ["Potential Grade", "Potential %ile"]
         display_cols += _attr_display + _fin_cols
     else:
-        display_cols = ["Player", "Team", "League", "Pos", "Role", "Squad Role",
+        display_cols = ["Player", "Team", "League", "Pos", "Foot", "Role", "Squad Role",
                         "Top Strength", "Overall Grade", "Overall %ile",
                         "League Grade", "League %ile"]
         if _show_potential:
