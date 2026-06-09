@@ -266,6 +266,17 @@ def _normalize_name(name):
     return s.lower().strip()
 
 
+def _ascii_name(name):
+    """ASCII fold a name but keep its case, e.g. 'B. Šeško' -> 'B. Sesko'.
+    Used as a typeable alias so accented names can be searched without the
+    special characters."""
+    if pd.isna(name):
+        return ""
+    s = unicodedata.normalize("NFD", str(name).strip())
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return s.translate(_EXTRA_TRANSLIT).strip()
+
+
 def _make_match_key(name):
     """First-initial + last-name key for matching: 'A. Isak' -> 'a.isak'."""
     parts = name.split()
@@ -3993,7 +4004,9 @@ def render_explorer(data):
     if positions:
         filtered = filtered[filtered["posicion_detail"].isin(positions)]
     if search:
-        filtered = filtered[filtered["nombre"].str.contains(search, case=False, na=False)]
+        # Accent-insensitive: "Sesko" matches "Šeško", "Odegaard" matches "Ødegaard".
+        _ns = _normalize_name(search)
+        filtered = filtered[filtered["nombre"].map(_normalize_name).str.contains(_ns, regex=False, na=False)]
 
     # Column selector
     default_cols = ["nombre", "equipo", "league_display", "posicion_detail", "Goals", "Goal Assists",
@@ -4965,6 +4978,11 @@ def _player_options(df_total):
     for _, r in sub.sort_values(["nombre", "equipo"]).iterrows():
         nm, tm, pos = r["nombre"], r.get("equipo", ""), r.get("posicion", "")
         label = f"{nm} — {tm} ({pos})" if counts.get(nm, 0) > 1 else nm
+        # Append a typeable ASCII alias for accented names so e.g. "Sesko"
+        # finds "B. Šeško" in the selectbox's type-to-search.
+        ascii_nm = _ascii_name(nm)
+        if ascii_nm and ascii_nm.lower() != str(nm).lower():
+            label = f"{label}  ·  {ascii_nm}"
         opts.append((label, nm, tm))
     return opts
 
