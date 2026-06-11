@@ -62,6 +62,11 @@ _FOOT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_foo
 # _compute_gk_derived for any keeper-season present here.
 _GK_PSXG_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gk_psxg.csv")
 
+# ── Player xG CSV (pre-shot expected goals per shooter, keyed by id + season) ─
+# Pre-computed locally by build_player_xg.py from the same event JSONs.  Powers
+# npxG and finishing (npG − xG) for outfield players.
+_PLAYER_XG_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_xg.csv")
+
 
 def _csv_mtime(path):
     """Return CSV file modification time as int (for cache-busting)."""
@@ -148,13 +153,40 @@ def _load_gk_psxg_csv(_bust=0):
     return out
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_player_xg_csv(_bust=0):
+    """Pre-shot xG per shooter-season, keyed by (Opta id, temporada).
+
+    Built by build_player_xg.py.  Returns
+    {(id, temporada): {"xG", "npxG", "npG-xG", "shots", "np_shots"}}.
+    """
+    if not os.path.exists(_PLAYER_XG_CSV):
+        return {}
+    df = pd.read_csv(_PLAYER_XG_CSV, encoding="utf-8-sig", low_memory=False)
+    out = {}
+    for _, r in df.iterrows():
+        pid = str(r.get("id", "")).strip()
+        season = str(r.get("temporada", "")).strip()
+        if not pid or not season:
+            continue
+        out[(pid, season)] = {
+            "xG": float(r.get("xG", 0) or 0),
+            "npxG": float(r.get("npxG", 0) or 0),
+            "npG-xG": float(r.get("npG-xG", 0) or 0),
+            "shots": float(r.get("shots", 0) or 0),
+            "np_shots": float(r.get("np_shots", 0) or 0),
+        }
+    return out
+
+
 META_COLS = {"nombre", "posicion", "posicion_detail", "league_display", "Player",
              "equipo", "Appearances", "Time Played", "estimated_90s"}
 
 # ── Metric groupings (Opta column names) ─────────────────────────────────────
 
 OFFENSIVE_METRICS = [
-    "Goals", "Goals Openplay", "Total Shots", "Shots On Target ( inc goals )",
+    "Goals", "Goals Openplay", "npxG", "npG-xG", "xG/Shot",
+    "Total Shots", "Shots On Target ( inc goals )",
     "Goals from Inside Box", "Goals from Outside Box", "Headed Goals",
     "Total Touches In Opposition Box", "Total Big Chances Scored",
     "Total Big Chances Missed", "Shots Created",
@@ -215,6 +247,11 @@ PSXG_W_PENALTY = 0.79      # penalty on target
 # can't swing the shot-stopping grade as hard as a full one.  ~30 on-target
 # shots ≈ a few matches; tuned so a full season (~130 faced) keeps ~80% weight.
 PSXG_SHRINK_K = 30.0
+
+# Same idea for finishing (npG − xG): regress toward 0 by non-penalty shots so a
+# small sample of hot/cold finishing can't swing the grade. ~40 shots ≈ a
+# striker's half-season; a full ~100-shot season keeps ~70% weight.
+XG_FINISH_SHRINK_K = 40.0
 
 DISCIPLINE_METRICS = ["Yellow Cards", "Total Red Cards", "Total Fouls Conceded"]
 
@@ -501,6 +538,41 @@ def _compute_gk_derived(df):
     return out
 
 
+def _compute_xg_derived(df):
+    """Pre-shot xG columns per player from the measured model (build_player_xg.py),
+    merged by (id, temporada).  Covers every shooter, not just strikers.
+
+    Returns {col: Series}: xG, npxG (counting stats → divided in per-90 mode),
+    npG-xG (finishing), xG/Shot, and a sample-shrunk finishing figure used by the
+    grade.  Like the keeper PSxG, these are measured quantities and are used
+    verbatim in both the raw and Padj pipelines.
+    """
+    out = {}
+    xg_data = _load_player_xg_csv(_bust=_csv_mtime(_PLAYER_XG_CSV))
+    if not xg_data or "id" not in df.columns or "temporada" not in df.columns:
+        return out
+    keys = list(zip(df["id"].astype(str), df["temporada"].astype(str)))
+    m_xg = pd.Series([xg_data.get(k, {}).get("xG") for k in keys],
+                     index=df.index, dtype=float)
+    m_npxg = pd.Series([xg_data.get(k, {}).get("npxG") for k in keys],
+                       index=df.index, dtype=float)
+    m_fin = pd.Series([xg_data.get(k, {}).get("npG-xG") for k in keys],
+                      index=df.index, dtype=float)
+    m_sh = pd.Series([xg_data.get(k, {}).get("shots") for k in keys],
+                     index=df.index, dtype=float)
+    m_nps = pd.Series([xg_data.get(k, {}).get("np_shots") for k in keys],
+                      index=df.index, dtype=float)
+    has = m_xg.notna()
+    if has.any():
+        out["xG"] = m_xg.round(2)
+        out["npxG"] = m_npxg.round(2)
+        out["npG-xG"] = m_fin.round(2)
+        out["xG/Shot"] = (m_xg / m_sh.replace(0, np.nan)).round(3)
+        # Shrunk finishing — the graded signal (measured rows only).
+        out["npG-xG (shrunk)"] = (m_fin * m_nps / (m_nps + XG_FINISH_SHRINK_K)).round(2)
+    return out
+
+
 def _data_fingerprint():
     """Max mtime across all player CSVs — used as a cache-buster so load_data
     (and trajectories) automatically re-read when the data files change on disk,
@@ -513,6 +585,7 @@ def _data_fingerprint():
             except OSError:
                 pass
     mt = max(mt, _csv_mtime(_GK_PSXG_CSV))   # refresh when measured PSxG changes
+    mt = max(mt, _csv_mtime(_PLAYER_XG_CSV))  # …and when player xG changes
     return mt
 
 
@@ -611,6 +684,9 @@ def _load_data_cached(season, _bust):
     # Calibrated PSxG/PSxG+/-, penalty stopping, handling and command of area.
     # Computed via shared helper so raw and Padj pipelines stay in sync.
     _derived.update(_compute_gk_derived(combined))
+
+    # ── Player pre-shot xG, npxG & finishing (npG − xG) ───────────────────
+    _derived.update(_compute_xg_derived(combined))
 
     # GK Launch %
     if "Successful Launches" in combined.columns and "Unsuccessful Launches" in combined.columns:
@@ -736,6 +812,9 @@ def _load_data_cached(season, _bust):
                                         # is meaningless, so keep them as-is in per-90 mode.
                                         "PSxG", "PSxG+/-", "PSxG+/- (shrunk)",
                                         "Saveable Goals Conceded",
+                                        # xG finishing differentials/rates — not per-90 counts
+                                        # (xG / npxG themselves DO divide → xG/90, npxG/90)
+                                        "npG-xG", "npG-xG (shrunk)", "xG/Shot",
                                         # GK rate metrics already normalised — do not re-divide
                                         "Saves/90", "Clean Sheet %"}:
             continue
@@ -763,6 +842,7 @@ def _load_data_cached(season, _bust):
         "Inside Box Save %", "Outside Box Save %",
         "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
         "PSxG", "PSxG+/-", "PSxG+/- (shrunk)", "Saveable Goals Conceded",
+        "npG-xG", "npG-xG (shrunk)", "xG/Shot",
         # GK rate metrics already normalised — do not re-divide
         "Saves/90", "Clean Sheet %",
     }
@@ -820,6 +900,9 @@ def _load_data_cached(season, _bust):
         # Re-derive GK shot-stopping & command metrics from Padj-adjusted counts
         for _gk_col, _gk_val in _compute_gk_derived(padj).items():
             padj[_gk_col] = _gk_val
+        # Measured xG/finishing — used verbatim (not possession-scaled)
+        for _xg_col, _xg_val in _compute_xg_derived(padj).items():
+            padj[_xg_col] = _xg_val
         if "Successful Launches" in padj.columns and "Unsuccessful Launches" in padj.columns:
             tl = padj["Successful Launches"].fillna(0) + padj["Unsuccessful Launches"].fillna(0)
             padj["Launch %"] = (padj["Successful Launches"].fillna(0) / tl.replace(0, np.nan) * 100).round(1)
@@ -1292,6 +1375,8 @@ PIZZA_METRICS = {
     ],
     "Attacking": [
         ("Goals", "Goals"),
+        ("npxG", "npxG"),
+        ("Finishing", "npG-xG (shrunk)"),
         ("Assists", "Goal Assists"),
         ("Shots on Target", "Shots On Target ( inc goals )"),
         ("Big Chances", "Total Big Chances Scored"),
@@ -1720,7 +1805,8 @@ GK_PROFILE_CATEGORIES = {
 }
 
 STRIKER_PROFILE_CATEGORIES = {
-    "Finishing": ["Goals", "Non-Penalty Goals", "Total Shots",
+    "Finishing": ["Goals", "Non-Penalty Goals", "npxG", "npG-xG (shrunk)",
+                  "Total Shots",
                   "Shots On Target ( inc goals )", "Total Touches In Opposition Box",
                   "Total Big Chances Scored"],
     "Chance Creation": ["Goal Assists", "Key Passes (Attempt Assists)",
@@ -1767,7 +1853,8 @@ AM_PROFILE_CATEGORIES = {
 
 # ── Attribute-based grade categories (used for Player Profile header grades) ─
 ATTRIBUTE_GRADE_CATEGORIES = {
-    "Attacking": ["Goals", "Non-Penalty Goals", "Total Shots",
+    "Attacking": ["Goals", "Non-Penalty Goals", "npxG", "npG-xG (shrunk)",
+                  "Total Shots",
                   "Shots On Target ( inc goals )", "Goals from Inside Box",
                   "Total Touches In Opposition Box",
                   "Total Big Chances Scored", "Shots Created",
@@ -2193,6 +2280,17 @@ _ROLE_KPI_PROFILES = {
         "Command":       (0.15, ["Catches", "Punches"]),
     },
 }
+
+# Inject the measured xG metrics into every role's finishing category so a
+# striker/winger/CAM is graded on chance quality (npxG) and finishing skill
+# (sample-shrunk npG − xG), not just raw goals/shots.  Done programmatically so
+# all attacking roles stay consistent without editing each profile by hand.
+for _role_prof in _ROLE_KPI_PROFILES.values():
+    for _cat, (_w, _metrics) in _role_prof.items():
+        if _cat == "Finishing":
+            for _m in ("npxG", "npG-xG (shrunk)"):
+                if _m not in _metrics:
+                    _metrics.append(_m)
 
 # ── Ball Security refinement ─────────────────────────────────────────────────
 # (1) "Ball Security" measures ball RETENTION, not pass completion.  Pass % is
@@ -4048,6 +4146,47 @@ def render_profile(data, is_current=True):
         if _has_measured_psxg:
             st.caption("🧤 **Saveable GA** (top row) = goals conceded from low-difficulty "
                        "shots (post-shot xG < 0.20) — soft goals that PSxG+/- nets away.")
+
+    # ── Outfield xG / Finishing statline ─────────────────────────────────
+    _npxg_val = row_data.get("npxG")
+    if not _is_gk and _npxg_val is not None and not pd.isna(_npxg_val):
+        st.markdown("---")
+        st.markdown(f"### ⚽ Expected Goals (xG) & Finishing{mode_label}")
+        st.caption("**npxG** = quality of chances taken (penalties excluded). "
+                   "**Finishing (npG−xG)** = non-penalty goals minus xG — positive is "
+                   "clinical, negative is wasteful. **xG/Shot** = average chance quality.")
+        _pos_peers_xg = peers[peers["posicion"] == position]
+
+        def _xg_pct(val, col):
+            if val is None or pd.isna(val) or col not in _pos_peers_xg.columns:
+                return None
+            pv = _pos_peers_xg[col].fillna(0)
+            return round((pv < val).sum() / max(len(pv), 1) * 100, 1)
+
+        _fin_val = row_data.get("npG-xG")
+        _xgs_val = row_data.get("xG/Shot")
+        _npg_val = row_data.get("Non-Penalty Goals")
+        xc1, xc2, xc3, xc4 = st.columns(4)
+        with xc1:
+            st.metric("npxG", f"{_npxg_val:.1f}",
+                      delta=(lambda p: f"{_ordinal(p)} %ile" if p is not None else None)(_xg_pct(_npxg_val, "npxG")),
+                      help="Non-penalty expected goals — the quality of chances taken.")
+        with xc2:
+            _npg_str = (f"{_npg_val:.1f}" if _npg_val is not None and not pd.isna(_npg_val) else "—")
+            st.metric("Non-Pen Goals", _npg_str)
+        with xc3:
+            fin_str = ("—" if _fin_val is None or pd.isna(_fin_val)
+                       else (f"+{_fin_val:.1f}" if _fin_val >= 0 else f"{_fin_val:.1f}"))
+            _fr = _xg_pct(row_data.get("npG-xG (shrunk)"), "npG-xG (shrunk)")
+            st.metric("Finishing (npG−xG)", fin_str,
+                      delta=(f"{_ordinal(_fr)} %ile" if _fr is not None else None),
+                      help="Non-penalty goals minus xG; percentile is the sample-shrunk "
+                           "value ranked vs same-position peers.")
+        with xc4:
+            xgs_str = (f"{_xgs_val:.3f}" if _xgs_val is not None and not pd.isna(_xgs_val) else "—")
+            st.metric("xG / Shot", xgs_str,
+                      delta=(lambda p: f"{_ordinal(p)} %ile" if p is not None else None)(_xg_pct(_xgs_val, "xG/Shot")),
+                      help="Average chance quality per shot taken.")
 
     # ── FBref Scouting Report ────────────────────────────────────────────
     st.markdown("---")
