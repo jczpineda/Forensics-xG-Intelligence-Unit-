@@ -69,6 +69,30 @@ def _normalize_name(name):
     return s.lower().strip()
 
 
+# Opta full legal names vs TheSportsDB common names — canonicalize the few that
+# break a plain substring match (mirrors app.py _TEAM_CANON).
+_TEAM_CANON = {
+    "bayern munchen": "bayern munich",
+    "internazionale milano": "inter milan",
+    "rasenballsport": "rb leipzig",
+    "borussia 09 dortmund": "borussia dortmund",
+    "vfl monchengladbach": "borussia monchengladbach",
+    "atalanta bergamasca": "atalanta",
+    "1. fc koln": "fc koln",
+    "real club celta": "celta",
+    "reial club deportiu espanyol": "espanyol",
+    "real club deportivo mallorca": "mallorca",
+}
+
+
+def _canon_team(team):
+    t = _normalize_name(team).replace(" fc", "").replace("fc ", "").strip()
+    for k, v in _TEAM_CANON.items():
+        if k in t:
+            return v
+    return t
+
+
 # ── Photo fetch (hardened, mirrors app.py) ────────────────────────────────────
 
 def _fetch_photo(short_name, team, used_urls):
@@ -96,9 +120,9 @@ def _fetch_photo(short_name, team, used_urls):
 
     chosen = None
     if team:
-        tl = _normalize_name(team).replace(" fc", "").replace("fc ", "").strip()
+        tl = _canon_team(team)
         for p in players:
-            pt = _normalize_name(p.get("strTeam") or "")
+            pt = _canon_team(p.get("strTeam") or "")
             if tl and pt and (tl in pt or pt in tl):
                 chosen = _photo(p)
                 if chosen:
@@ -208,5 +232,41 @@ def main():
     print(f"Output: {OUTPUT_CSV}")
 
 
+def refresh(names):
+    """Force re-fetch specific players (overwriting existing photos).  Gap-fill
+    never refreshes, so use this to fix a stale/wrong face.
+
+        python build_photos_csv.py refresh "H. Kane;V. Gyökeres"
+    """
+    players = collect_players()
+    order = [p["short_name"] for p in players]
+    by_team = {p["short_name"]: p["team"] for p in players}
+    rows = load_existing()
+    used = set(rows.values())
+    for sn in names:
+        sn = sn.strip()
+        if not sn:
+            continue
+        if sn not in by_team:
+            print(f"  {sn!r} not found in Opta data — skipping")
+            continue
+        used.discard(rows.get(sn))               # free its current URL
+        url = _fetch_photo(sn, by_team[sn], used)
+        time.sleep(DELAY)
+        if url:
+            rows[sn] = url
+            used.add(url)
+            print(f"  {sn} -> {url}")
+        else:
+            rows.pop(sn, None)
+            print(f"  {sn} -> no confident match (avatar)")
+    write_csv(rows, order)
+    print(f"Refreshed {len(names)} player(s). Output: {OUTPUT_CSV}")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 2 and sys.argv[1] == "refresh":
+        refresh(sys.argv[2].split(";"))
+    else:
+        main()

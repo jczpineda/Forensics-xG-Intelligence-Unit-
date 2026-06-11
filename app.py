@@ -1139,6 +1139,36 @@ def chart_pie(data, names, values, title, height=500):
 
 # ── Photo helper ─────────────────────────────────────────────────────────────
 
+# Opta stores full legal club names ("FC Bayern München", "FC Internazionale
+# Milano"); TheSportsDB uses common names ("Bayern Munich", "Inter Milan").  A
+# plain substring match fails for these, so canonicalize the ones that differ
+# enough to break it — otherwise the team filter can't disambiguate same-named
+# players and a wrong/stale face slips through.
+_TEAM_CANON = {
+    "bayern munchen": "bayern munich",
+    "internazionale milano": "inter milan",
+    "rasenballsport": "rb leipzig",
+    "borussia 09 dortmund": "borussia dortmund",
+    "vfl monchengladbach": "borussia monchengladbach",
+    "atalanta bergamasca": "atalanta",
+    "1. fc koln": "fc koln",
+    "real club celta": "celta",
+    "real sociedad": "real sociedad",
+    "reial club deportiu espanyol": "espanyol",
+    "real club deportivo mallorca": "mallorca",
+}
+
+
+def _canon_team(team):
+    """Normalize a club name (accent-fold, strip FC) and apply the alias map so
+    Opta and TheSportsDB names match."""
+    t = _normalize_name(team).replace(" fc", "").replace("fc ", "").strip()
+    for k, v in _TEAM_CANON.items():
+        if k in t:
+            return v
+    return t
+
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def _fetch_player_photo(player_name, team=None, ambiguous=False):
     """Return a player photo URL, preferring manual CSV overrides over TheSportsDB.
@@ -1168,9 +1198,9 @@ def _fetch_player_photo(player_name, team=None, ambiguous=False):
                 return p.get("strCutout") or p.get("strThumb") or p.get("strRender")
             # If team hint provided, only accept a player on that team.
             if team:
-                team_lower = team.lower().replace(" fc", "").replace("fc ", "").strip()
+                team_lower = _canon_team(team)
                 for p in players:
-                    p_team = (p.get("strTeam") or "").lower().replace(" fc", "").replace("fc ", "").strip()
+                    p_team = _canon_team(p.get("strTeam") or "")
                     if team_lower and p_team and (team_lower in p_team or p_team in team_lower):
                         photo = _photo(p)
                         if photo:
