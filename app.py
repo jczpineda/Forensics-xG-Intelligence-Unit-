@@ -3963,23 +3963,35 @@ def render_profile(data, is_current=True):
             return f"{_ordinal(pct)} %ile" if pct is not None else None
 
         # ── Top-row summary metrics ────────────────────────────────────
-        mc1, mc2, mc3, mc4, mc5 = st.columns(5)
-        with mc1:
+        _mcols = st.columns(6) if _has_measured_psxg else st.columns(5)
+        with _mcols[0]:
             st.metric("Shots Faced", int(shots_faced))
-        with mc2:
+        with _mcols[1]:
             _psxg_label = "PSxG" if _has_measured_psxg else "PSxG (approx.)"
             _psxg_help = ("Post-Shot xG from a shot-level model (goalmouth placement, "
                           "distance, angle, body part)." if _has_measured_psxg
                           else "Approximated Post-Shot xG using shot-location weights.")
             st.metric(_psxg_label, f"{psxg_val:.1f}", help=_psxg_help)
-        with mc3:
+        with _mcols[2]:
             st.metric("Goals Against", int(ga_val))
-        with mc4:
+        with _mcols[3]:
             pm_str = f"+{psxg_pm_val:.1f}" if (psxg_pm_val is not None and psxg_pm_val >= 0) else (f"{psxg_pm_val:.1f}" if psxg_pm_val is not None else "—")
             st.metric("PSxG+/- (Goals Prevented)", pm_str,
                       delta=_pct_delta(_pm_rank),
                       help="Positive = conceded fewer goals than shot-quality suggests.")
-        with mc5:
+        # Saveable Goals sits right next to PSxG+/- as its counterpoint: soft
+        # goals the +/- nets away.  Only shown when the measured model covers
+        # this keeper-season.
+        if _has_measured_psxg:
+            with _mcols[4]:
+                _soft_rank = _gk_pct_rank(soft_ga_val, "Saveable Goals Conceded")
+                _soft_delta = (f"{_ordinal(100 - _soft_rank)} %ile" if _soft_rank is not None else None)
+                st.metric("Saveable GA", int(soft_ga_val), delta=_soft_delta,
+                          delta_color="off",
+                          help="Goals conceded from low-difficulty shots (post-shot xG "
+                               "< 0.20) — soft goals PSxG+/- nets away. Fewer is better; "
+                               "percentile shown is rank among GKs (higher = fewer).")
+        with _mcols[5 if _has_measured_psxg else 4]:
             sv_str = f"{sv_pct:.1f}%" if sv_pct is not None else "—"
             st.metric("Save %", sv_str, delta=_pct_delta(_sv_rank))
 
@@ -4011,8 +4023,7 @@ def render_profile(data, is_current=True):
         st.dataframe(pd.DataFrame(loc_rows).set_index("Zone"), use_container_width=True)
 
         # ── Penalty & big-chance rows ──────────────────────────────────
-        _ctx_cols = st.columns(4) if _has_measured_psxg else st.columns(3)
-        pen_col, bc_col, psxg_shot_col = _ctx_cols[0], _ctx_cols[1], _ctx_cols[2]
+        pen_col, bc_col, psxg_shot_col = st.columns(3)
         with pen_col:
             st.markdown("**🥅 Penalties**")
             pen_df = pd.DataFrame([{
@@ -4035,18 +4046,8 @@ def render_profile(data, is_current=True):
             }])
             st.dataframe(sq_df, use_container_width=True, hide_index=True)
         if _has_measured_psxg:
-            with _ctx_cols[3]:
-                st.markdown("**🧤 Saveable Goals**")
-                _soft_rank = _gk_pct_rank(soft_ga_val, "Saveable Goals Conceded")
-                # Fewer is better → invert the percentile for the "vs peers" read.
-                _soft_pct = f"{_ordinal(100 - _soft_rank)} %ile" if _soft_rank is not None else "—"
-                soft_df = pd.DataFrame([{
-                    "Conceded": int(soft_ga_val),
-                    "vs GK Peers": _soft_pct,
-                }])
-                st.dataframe(soft_df, use_container_width=True, hide_index=True)
-            st.caption("🧤 Saveable Goals = goals conceded from low-difficulty shots "
-                       "(post-shot xG < 0.20) — soft goals that PSxG+/- nets away.")
+            st.caption("🧤 **Saveable GA** (top row) = goals conceded from low-difficulty "
+                       "shots (post-shot xG < 0.20) — soft goals that PSxG+/- nets away.")
 
     # ── FBref Scouting Report ────────────────────────────────────────────
     st.markdown("---")
