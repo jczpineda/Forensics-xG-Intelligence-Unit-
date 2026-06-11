@@ -143,6 +143,7 @@ def _load_gk_psxg_csv(_bust=0):
             "PSxG+/-": float(r.get("PSxG+/-", 0) or 0),
             "shots": float(r.get("shots_on_target_faced", 0) or 0),
             "goals": float(r.get("psxg_goals_faced", 0) or 0),
+            "soft": float(r.get("soft_goals_conceded", 0) or 0),
         }
     return out
 
@@ -481,6 +482,8 @@ def _compute_gk_derived(df):
                          index=df.index, dtype=float)
         m_sh = pd.Series([gk_psxg.get(k, {}).get("shots") for k in keys],
                          index=df.index, dtype=float)
+        m_soft = pd.Series([gk_psxg.get(k, {}).get("soft") for k in keys],
+                           index=df.index, dtype=float)
         has = m_psxg.notna()
         if has.any():
             base_psxg = out.get("PSxG", pd.Series(np.nan, index=df.index))
@@ -492,6 +495,8 @@ def _compute_gk_derived(df):
             out["PSxG/Shot"] = base_sps.where(~has, meas_sps)
             # Shrunk PSxG+/- — the graded shot-stopping signal (measured rows only).
             out["PSxG+/- (shrunk)"] = (m_pm * m_sh / (m_sh + PSXG_SHRINK_K)).round(2)
+            # Saveable goals conceded — soft goals PSxG+/- nets away (see builder).
+            out["Saveable Goals Conceded"] = m_soft.where(has)
 
     return out
 
@@ -730,6 +735,7 @@ def _load_data_cached(season, _bust):
                                         # (like xG totals) — dividing a +/- differential by 90s
                                         # is meaningless, so keep them as-is in per-90 mode.
                                         "PSxG", "PSxG+/-", "PSxG+/- (shrunk)",
+                                        "Saveable Goals Conceded",
                                         # GK rate metrics already normalised — do not re-divide
                                         "Saves/90", "Clean Sheet %"}:
             continue
@@ -756,7 +762,7 @@ def _load_data_cached(season, _bust):
         # GK ratio metrics — already rates, do not re-divide
         "Inside Box Save %", "Outside Box Save %",
         "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
-        "PSxG", "PSxG+/-", "PSxG+/- (shrunk)",
+        "PSxG", "PSxG+/-", "PSxG+/- (shrunk)", "Saveable Goals Conceded",
         # GK rate metrics already normalised — do not re-divide
         "Saves/90", "Clean Sheet %",
     }
@@ -3927,6 +3933,8 @@ def render_profile(data, is_current=True):
         psxg_val       = row_data.get("PSxG") or 0.0
         psxg_pm_val    = row_data.get("PSxG+/-")
         psxg_shot_val  = row_data.get("PSxG/Shot")
+        soft_ga_val    = row_data.get("Saveable Goals Conceded")
+        _has_measured_psxg = soft_ga_val is not None and not pd.isna(soft_ga_val)
         ga_val         = row_data.get("Goals Conceded") or 0
         saves_val      = row_data.get("Saves Made") or 0
         shots_faced    = saves_val + ga_val
@@ -3959,8 +3967,11 @@ def render_profile(data, is_current=True):
         with mc1:
             st.metric("Shots Faced", int(shots_faced))
         with mc2:
-            st.metric("PSxG (approx.)", f"{psxg_val:.1f}",
-                      help="Approximated Post-Shot xG using shot-location weights.")
+            _psxg_label = "PSxG" if _has_measured_psxg else "PSxG (approx.)"
+            _psxg_help = ("Post-Shot xG from a shot-level model (goalmouth placement, "
+                          "distance, angle, body part)." if _has_measured_psxg
+                          else "Approximated Post-Shot xG using shot-location weights.")
+            st.metric(_psxg_label, f"{psxg_val:.1f}", help=_psxg_help)
         with mc3:
             st.metric("Goals Against", int(ga_val))
         with mc4:
@@ -4000,7 +4011,8 @@ def render_profile(data, is_current=True):
         st.dataframe(pd.DataFrame(loc_rows).set_index("Zone"), use_container_width=True)
 
         # ── Penalty & big-chance rows ──────────────────────────────────
-        pen_col, bc_col, psxg_shot_col = st.columns(3)
+        _ctx_cols = st.columns(4) if _has_measured_psxg else st.columns(3)
+        pen_col, bc_col, psxg_shot_col = _ctx_cols[0], _ctx_cols[1], _ctx_cols[2]
         with pen_col:
             st.markdown("**🥅 Penalties**")
             pen_df = pd.DataFrame([{
@@ -4022,6 +4034,19 @@ def render_profile(data, is_current=True):
                 "vs GK Peers": sq_rank or "—",
             }])
             st.dataframe(sq_df, use_container_width=True, hide_index=True)
+        if _has_measured_psxg:
+            with _ctx_cols[3]:
+                st.markdown("**🧤 Saveable Goals**")
+                _soft_rank = _gk_pct_rank(soft_ga_val, "Saveable Goals Conceded")
+                # Fewer is better → invert the percentile for the "vs peers" read.
+                _soft_pct = f"{_ordinal(100 - _soft_rank)} %ile" if _soft_rank is not None else "—"
+                soft_df = pd.DataFrame([{
+                    "Conceded": int(soft_ga_val),
+                    "vs GK Peers": _soft_pct,
+                }])
+                st.dataframe(soft_df, use_container_width=True, hide_index=True)
+            st.caption("🧤 Saveable Goals = goals conceded from low-difficulty shots "
+                       "(post-shot xG < 0.20) — soft goals that PSxG+/- nets away.")
 
     # ── FBref Scouting Report ────────────────────────────────────────────
     st.markdown("---")

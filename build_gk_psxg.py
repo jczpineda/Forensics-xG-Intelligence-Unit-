@@ -312,16 +312,26 @@ def shot_psxg(model, s):
 
 # ── Aggregate per keeper ──────────────────────────────────────────────────────
 
+# A "soft" (saveable) goal is one conceded from an open-play shot the model
+# rates below this post-shot xG — i.e. an average keeper saves it 80%+ of the
+# time.  Counting these surfaces error-proneness that PSxG+/- nets away against
+# saves on hard shots (e.g. a busy keeper behind a leaky defence).
+SOFT_GOAL_PSXG_MAX = 0.20
+
 def aggregate(all_shots, model):
-    agg = collections.defaultdict(lambda: {"psxg": 0.0, "goals": 0, "shots": 0})
+    agg = collections.defaultdict(
+        lambda: {"psxg": 0.0, "goals": 0, "shots": 0, "soft": 0})
     for s in all_shots:
         gk = s["gk"]
         if not gk:
             continue
         a = agg[(gk, s["season"], s["liga"])]
-        a["psxg"] += shot_psxg(model, s)
+        p = shot_psxg(model, s)
+        a["psxg"] += p
         a["goals"] += 1 if s["is_goal"] else 0
         a["shots"] += 1
+        if s["is_goal"] and not s["is_pen"] and p < SOFT_GOAL_PSXG_MAX:
+            a["soft"] += 1
     return agg
 
 
@@ -366,9 +376,9 @@ def validate():
             continue
         nm, team = meta.get(gk, (gk, "?"))
         rows.append((nm, team, liga, a["psxg"], a["psxg"] - a["goals"],
-                     a["goals"], a["shots"]))
+                     a["goals"], a["shots"], a["soft"]))
     df = pd.DataFrame(rows, columns=["name", "team", "liga", "PSxG", "PSxG+/-",
-                                     "goals", "shots_OT"]).sort_values(
+                                     "goals", "shots_OT", "soft"]).sort_values(
         "PSxG+/-", ascending=False)
     pd.set_option("display.width", 160)
     print("\n── Best shot-stoppers 2025-26 (≥20 on-target faced) ──")
@@ -392,6 +402,7 @@ def build():
             "PSxG+/-": round(a["psxg"] - a["goals"], 2),
             "psxg_goals_faced": a["goals"],
             "shots_on_target_faced": a["shots"],
+            "soft_goals_conceded": a["soft"],
         })
     out = pd.DataFrame(rows).sort_values(["temporada", "liga", "PSxG"],
                                          ascending=[False, True, False])
