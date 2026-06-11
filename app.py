@@ -4165,8 +4165,9 @@ def render_profile(data, is_current=True):
     _npxg_val = row_data.get("npxG")
     if not _is_gk and _npxg_val is not None and not pd.isna(_npxg_val):
         st.markdown("---")
-        st.markdown(f"### ⚽ Expected Goals & Assists (xG / xA){mode_label}")
-        st.caption("**npxG** = chance quality (shooting). **Finishing (npG−xG)** = "
+        st.markdown(f"### ⚽ Goals, Assists & Expected (xG / xA){mode_label}")
+        st.caption("Top row = actual output. Below: **npxG** = chance quality (shooting). "
+                   "**Finishing (npG−xG)** = "
                    "non-penalty goals minus xG (clinical vs wasteful). **xA** = expected "
                    "assists, the xG of chances created. **npxG+xA** = total expected "
                    "involvement. Percentiles are vs same-position peers.")
@@ -4182,11 +4183,37 @@ def render_profile(data, is_current=True):
             p = _xg_pct(val, col)
             return f"{_ordinal(p)} %ile" if p is not None else None
 
+        def _num(v):
+            """Format a count: integer in Total mode, decimals in Per-90."""
+            if v is None or pd.isna(v):
+                return "—"
+            return f"{v:.0f}" if float(v).is_integer() else f"{v:.2f}"
+
+        # ── Actual output: goals & assists ───────────────────────────────
+        _goals_val = row_data.get("Goals")
+        _ast_val = row_data.get("Goal Assists")
+        _npg_val = row_data.get("Non-Penalty Goals")
+        oc1, oc2, oc3, oc4 = st.columns(4)
+        with oc1:
+            st.metric("Goals", _num(_goals_val), delta=_pctd(_goals_val, "Goals"),
+                      help="Total goals scored (includes penalties).")
+        with oc2:
+            st.metric("Assists", _num(_ast_val), delta=_pctd(_ast_val, "Goal Assists"),
+                      help="Goals assisted (the pass that directly led to a goal).")
+        with oc3:
+            st.metric("Non-Pen Goals", _num(_npg_val))
+        with oc4:
+            _ga_val = (None if (_goals_val is None or pd.isna(_goals_val))
+                       else (_goals_val or 0) + (_ast_val or 0))
+            st.metric("Goals + Assists", _num(_ga_val),
+                      help="Combined goal involvement (actual output).")
+
+        # ── Expected: xG / xA ────────────────────────────────────────────
         _fin_val = row_data.get("npG-xG")
         _xgs_val = row_data.get("xG/Shot")
         _xa_val = row_data.get("xA")
         _inv_val = row_data.get("npxG+xA")
-        xc1, xc2, xc3, xc4, xc5, xc6 = st.columns(6)
+        xc1, xc2, xc3, xc4, xc5 = st.columns(5)
         with xc1:
             st.metric("npxG", f"{_npxg_val:.1f}", delta=_pctd(_npxg_val, "npxG"),
                       help="Non-penalty expected goals — quality of chances taken.")
@@ -4208,10 +4235,6 @@ def render_profile(data, is_current=True):
             xgs_str = (f"{_xgs_val:.3f}" if _xgs_val is not None and not pd.isna(_xgs_val) else "—")
             st.metric("xG / Shot", xgs_str, delta=_pctd(_xgs_val, "xG/Shot"),
                       help="Average chance quality per shot taken.")
-        with xc6:
-            _npg_val = row_data.get("Non-Penalty Goals")
-            _npg_str = (f"{_npg_val:.1f}" if _npg_val is not None and not pd.isna(_npg_val) else "—")
-            st.metric("Non-Pen Goals", _npg_str)
 
     # ── FBref Scouting Report ────────────────────────────────────────────
     st.markdown("---")
