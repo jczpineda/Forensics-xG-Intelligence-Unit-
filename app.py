@@ -56,6 +56,12 @@ _PHOTOS_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_p
 # ── Player Footedness CSV (from Transfermarkt, keyed by Opta id) ──────────────
 _FOOT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_footedness.csv")
 
+# ── GK PSxG CSV (true shot-level post-shot xG, keyed by Opta id + season) ─────
+# Pre-computed locally by build_gk_psxg.py from the raw Opta event JSONs (which
+# are too large to commit).  Replaces the season-aggregate PSxG approximation in
+# _compute_gk_derived for any keeper-season present here.
+_GK_PSXG_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gk_psxg.csv")
+
 
 def _csv_mtime(path):
     """Return CSV file modification time as int (for cache-busting)."""
@@ -113,6 +119,31 @@ def _load_footedness_csv(_bust=0):
         foot = (r.get("foot") or "").strip().lower()
         if pid and foot in ("left", "right", "both"):
             out[pid] = foot
+    return out
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_gk_psxg_csv(_bust=0):
+    """True post-shot xG per goalkeeper-season, keyed by (Opta id, temporada).
+
+    Built by build_gk_psxg.py from the raw event JSONs.  Returns
+    {(id, temporada): {"PSxG", "PSxG+/-", "shots", "goals"}}.
+    """
+    if not os.path.exists(_GK_PSXG_CSV):
+        return {}
+    df = pd.read_csv(_GK_PSXG_CSV, encoding="utf-8-sig", low_memory=False)
+    out = {}
+    for _, r in df.iterrows():
+        pid = str(r.get("id", "")).strip()
+        season = str(r.get("temporada", "")).strip()
+        if not pid or not season:
+            continue
+        out[(pid, season)] = {
+            "PSxG": float(r.get("PSxG", 0) or 0),
+            "PSxG+/-": float(r.get("PSxG+/-", 0) or 0),
+            "shots": float(r.get("shots_on_target_faced", 0) or 0),
+            "goals": float(r.get("psxg_goals_faced", 0) or 0),
+        }
     return out
 
 
@@ -177,6 +208,12 @@ PSXG_W_INSIDE = 0.34       # normal on-target shot, inside box (non-penalty)
 PSXG_W_BIG_CHANCE = 0.55   # big chance — clear scoring opportunity
 PSXG_W_OUTSIDE = 0.12      # on-target shot from outside the box
 PSXG_W_PENALTY = 0.79      # penalty on target
+
+# Regression-to-mean constant for the graded PSxG+/-.  A keeper's measured
+# PSxG+/- is shrunk toward 0 by shots/(shots+k) so a hot/cold partial season
+# can't swing the shot-stopping grade as hard as a full one.  ~30 on-target
+# shots ≈ a few matches; tuned so a full season (~130 faced) keeps ~80% weight.
+PSXG_SHRINK_K = 30.0
 
 DISCIPLINE_METRICS = ["Yellow Cards", "Total Red Cards", "Total Fouls Conceded"]
 
@@ -429,6 +466,33 @@ def _compute_gk_derived(df):
         cross_actions = claimed + df["Crosses not Claimed"].fillna(0)
         out["Claim %"] = (claimed / cross_actions.replace(0, np.nan) * 100).round(1)
 
+    # ── Override with TRUE shot-level PSxG where available ────────────────────
+    # build_gk_psxg.py measures PSxG/PSxG+/- per keeper-season from the raw event
+    # JSONs.  Those measured values replace the season-aggregate approximation
+    # above (which remains the fallback for any keeper-season not in the CSV).
+    # A measured xG is a real quantity, so it is used verbatim in both the raw
+    # and Padj pipelines (never re-scaled by possession).
+    gk_psxg = _load_gk_psxg_csv(_bust=_csv_mtime(_GK_PSXG_CSV))
+    if gk_psxg and "id" in df.columns and "temporada" in df.columns:
+        keys = list(zip(df["id"].astype(str), df["temporada"].astype(str)))
+        m_psxg = pd.Series([gk_psxg.get(k, {}).get("PSxG") for k in keys],
+                           index=df.index, dtype=float)
+        m_pm = pd.Series([gk_psxg.get(k, {}).get("PSxG+/-") for k in keys],
+                         index=df.index, dtype=float)
+        m_sh = pd.Series([gk_psxg.get(k, {}).get("shots") for k in keys],
+                         index=df.index, dtype=float)
+        has = m_psxg.notna()
+        if has.any():
+            base_psxg = out.get("PSxG", pd.Series(np.nan, index=df.index))
+            base_pm = out.get("PSxG+/-", pd.Series(np.nan, index=df.index))
+            base_sps = out.get("PSxG/Shot", pd.Series(np.nan, index=df.index))
+            out["PSxG"] = base_psxg.where(~has, m_psxg).round(1)
+            out["PSxG+/-"] = base_pm.where(~has, m_pm).round(1)
+            meas_sps = (m_psxg / m_sh.replace(0, np.nan)).round(3)
+            out["PSxG/Shot"] = base_sps.where(~has, meas_sps)
+            # Shrunk PSxG+/- — the graded shot-stopping signal (measured rows only).
+            out["PSxG+/- (shrunk)"] = (m_pm * m_sh / (m_sh + PSXG_SHRINK_K)).round(2)
+
     return out
 
 
@@ -443,6 +507,7 @@ def _data_fingerprint():
                 mt = max(mt, int(os.path.getmtime(os.path.join(OPTA_DIR, folder_name, fn))))
             except OSError:
                 pass
+    mt = max(mt, _csv_mtime(_GK_PSXG_CSV))   # refresh when measured PSxG changes
     return mt
 
 
@@ -661,6 +726,8 @@ def _load_data_cached(season, _bust):
                                         # GK ratio metrics — already rates, do not re-divide
                                         "Inside Box Save %", "Outside Box Save %",
                                         "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
+                                        # Sample-shrunk season figure — not a per-90 rate
+                                        "PSxG+/- (shrunk)",
                                         # GK rate metrics already normalised — do not re-divide
                                         "Saves/90", "Clean Sheet %"}:
             continue
@@ -687,6 +754,7 @@ def _load_data_cached(season, _bust):
         # GK ratio metrics — already rates, do not re-divide
         "Inside Box Save %", "Outside Box Save %",
         "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
+        "PSxG+/- (shrunk)",
         # GK rate metrics already normalised — do not re-divide
         "Saves/90", "Clean Sheet %",
     }
@@ -1230,10 +1298,12 @@ PIZZA_METRICS = {
 # informational stats in the Detailed Statistics tabs and the PSxG statline.
 GK_PIZZA_METRICS = {
     "Shot-Stopping": [
+        # Core: goals prevented vs a real post-shot xG model (build_gk_psxg.py),
+        # sample-shrunk so partial seasons don't swing the grade.  Weighted as the
+        # dominant metric in the grade via GK_SHOTSTOP_GRADE_WEIGHTS.
+        ("PSxG+/-", "PSxG+/- (shrunk)"),
         ("Saves/90", "Saves/90"),          # rate — fair for GKs on dominant teams
         ("Save %", "Save %"),
-        ("PSxG+/-", "PSxG+/-"),            # xG prevented — above/below average shot-stopping
-        ("Goals Prevented", "Goals Prevented"),
         ("Big Chances Saved", "Total Big Chances Saved"),
         ("Clean Sheet %", "Clean Sheet %"),
     ],
@@ -1252,6 +1322,11 @@ GK_PIZZA_METRICS = {
         ("Interceptions", "Interceptions"),
     ],
 }
+
+# PSxG+/- is the primary shot-stopping signal: weight it 4× the supporting
+# metrics so it accounts for ~half the Shot-Stopping category grade.  Applied in
+# the GK grade path only (the pizza chart still shows each slice equally).
+GK_SHOTSTOP_GRADE_WEIGHTS = {"PSxG+/- (shrunk)": 4.0}
 
 PIZZA_CATEGORY_COLORS = {
     "Defending": "#457b9d",
@@ -1628,7 +1703,7 @@ PROFILE_CATEGORIES = {
 }
 
 GK_PROFILE_CATEGORIES = {
-    "Shot-Stopping": ["Saves Made", "Save %", "Goals Prevented",
+    "Shot-Stopping": ["PSxG+/- (shrunk)", "Save %", "Saves Made",
                       "Total Big Chances Saved"],
     "Command": ["Catches", "Punches", "Penalties Saved"],
     "Distribution": ["GK Successful Distribution", "Successful Launches",
@@ -2637,7 +2712,9 @@ def _compute_attribute_grades(row_data, position, df_total, league=None, role=No
         # that push most keepers to 0th percentile and produce misleading grades.
         cats = {cat: [col for _, col in metrics] for cat, metrics in GK_PIZZA_METRICS.items()}
         inv_cats = _KPI_INVERTED_CATS
+        grade_weights = GK_SHOTSTOP_GRADE_WEIGHTS   # PSxG+/- is the core of Shot-Stopping
     else:
+        grade_weights = None
         kpi = _ROLE_KPI_PROFILES.get(kpi_role) if kpi_role else None
         if kpi:
             cats = {name: metrics for name, (weight, metrics) in kpi.items()}
@@ -2669,7 +2746,8 @@ def _compute_attribute_grades(row_data, position, df_total, league=None, role=No
     if len(peers) < 5:
         return {attr: ("N/A", None) for attr in cats}
 
-    pcts = _compute_percentiles(row_data, peers, cats, inverted_cats=inv_cats)
+    pcts = _compute_percentiles(row_data, peers, cats, inverted_cats=inv_cats,
+                                weights=grade_weights)
 
     result = {}
     for attr, pct in pcts.items():
@@ -2714,11 +2792,16 @@ def _compute_player_grades(row_data, position, df_total, role=None):
             _percentile_to_grade(ov_avg), round(ov_avg, 1))
 
 
-def _compute_percentiles(player_row, df_peers, categories, inverted_cats=None):
+def _compute_percentiles(player_row, df_peers, categories, inverted_cats=None,
+                         weights=None):
     """Per-category percentile (0-100) for a player vs peers.
     Ranks each metric individually against peers and averages the per-metric
     percentiles within each category — consistent with the pizza chart display
-    so that high-magnitude stats don't dominate low-magnitude ones."""
+    so that high-magnitude stats don't dominate low-magnitude ones.
+
+    *weights* (optional): {metric_col: weight} to weight specific metrics more
+    heavily within their category (e.g. make PSxG+/- the core of Shot-Stopping).
+    Metrics not listed default to weight 1.0."""
     if inverted_cats is None:
         inverted_cats = _INVERTED_GRADE_CATS
     result = {}
@@ -2728,13 +2811,16 @@ def _compute_percentiles(player_row, df_peers, categories, inverted_cats=None):
             result[cat] = 0
             continue
         metric_pcts = []
+        metric_wts = []
         for m in avail:
             val = player_row.get(m, 0)
             val = 0 if val is None or (isinstance(val, float) and np.isnan(val)) else (val or 0)
             peer_vals = df_peers[m].fillna(0)
             pct = (peer_vals < val).sum() / max(len(peer_vals), 1) * 100
             metric_pcts.append(pct)
-        cat_pct = sum(metric_pcts) / len(metric_pcts)
+            metric_wts.append((weights or {}).get(m, 1.0))
+        tot_w = sum(metric_wts) or 1.0
+        cat_pct = sum(p * w for p, w in zip(metric_pcts, metric_wts)) / tot_w
         if cat in inverted_cats:
             cat_pct = 100 - cat_pct
         result[cat] = round(cat_pct, 1)
