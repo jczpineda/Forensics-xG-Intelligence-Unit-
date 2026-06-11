@@ -175,6 +175,8 @@ def _load_player_xg_csv(_bust=0):
             "npG-xG": float(r.get("npG-xG", 0) or 0),
             "shots": float(r.get("shots", 0) or 0),
             "np_shots": float(r.get("np_shots", 0) or 0),
+            "xA": float(r.get("xA", 0) or 0),
+            "key_passes": float(r.get("key_passes", 0) or 0),
         }
     return out
 
@@ -209,7 +211,7 @@ BALL_PROGRESSION_METRICS = [
 
 PASSING_METRICS = [
     "Total Passes", "Total Successful Passes ( Excl Crosses & Corners ) ",
-    "Key Passes (Attempt Assists)", "Goal Assists",
+    "Key Passes (Attempt Assists)", "Goal Assists", "xA",
     "Successful Long Passes", "Forward Passes",
     "Successful Open Play Passes", "Through balls",
     "Successful Crosses & Corners",
@@ -562,6 +564,8 @@ def _compute_xg_derived(df):
                      index=df.index, dtype=float)
     m_nps = pd.Series([xg_data.get(k, {}).get("np_shots") for k in keys],
                       index=df.index, dtype=float)
+    m_xa = pd.Series([xg_data.get(k, {}).get("xA") for k in keys],
+                     index=df.index, dtype=float)
     has = m_xg.notna()
     if has.any():
         out["xG"] = m_xg.round(2)
@@ -570,6 +574,9 @@ def _compute_xg_derived(df):
         out["xG/Shot"] = (m_xg / m_sh.replace(0, np.nan)).round(3)
         # Shrunk finishing — the graded signal (measured rows only).
         out["npG-xG (shrunk)"] = (m_fin * m_nps / (m_nps + XG_FINISH_SHRINK_K)).round(2)
+        # Expected assists, and combined expected goal involvement.
+        out["xA"] = m_xa.round(2)
+        out["npxG+xA"] = (m_npxg + m_xa).round(2)
     return out
 
 
@@ -1358,6 +1365,7 @@ PIZZA_METRICS = {
         ("Long Passes", "Successful Long Passes"),
         ("Fwd Passes", "Forward Passes"),
         ("Key Passes", "Key Passes (Attempt Assists)"),
+        ("xA", "xA"),
         ("Through Balls", "Through balls"),
         ("Big Chances Created", "Total Big Chances Created"),
     ],
@@ -1809,7 +1817,7 @@ STRIKER_PROFILE_CATEGORIES = {
                   "Total Shots",
                   "Shots On Target ( inc goals )", "Total Touches In Opposition Box",
                   "Total Big Chances Scored"],
-    "Chance Creation": ["Goal Assists", "Key Passes (Attempt Assists)",
+    "Chance Creation": ["Goal Assists", "xA", "Key Passes (Attempt Assists)",
                         "Total Big Chances Created"],
     "Aerial": ["Aerial Duels won", "Aerial Duels", "Aerial Win %"],
     "Possession": ["Successful Dribbles", "Dribble %",
@@ -1822,7 +1830,7 @@ WINGER_PROFILE_CATEGORIES = {
     "Offensive": ["Goals", "Non-Penalty Goals", "Total Shots",
                   "Shots On Target ( inc goals )",
                   "Total Touches In Opposition Box"],
-    "Chance Creation": ["Goal Assists", "Key Passes (Attempt Assists)",
+    "Chance Creation": ["Goal Assists", "xA", "Key Passes (Attempt Assists)",
                         "Successful Crosses & Corners", "Cross %",
                         "Total Big Chances Created"],
     "Dribbling & Carrying": ["Successful Dribbles", "Dribble %",
@@ -1839,7 +1847,7 @@ AM_PROFILE_CATEGORIES = {
                   "Shots On Target ( inc goals )",
                   "Total Touches In Opposition Box",
                   "Total Big Chances Scored"],
-    "Chance Creation": ["Goal Assists", "Key Passes (Attempt Assists)",
+    "Chance Creation": ["Goal Assists", "xA", "Key Passes (Attempt Assists)",
                         "Through balls", "Total Big Chances Created"],
     "Dribbling & Carrying": ["Successful Dribbles", "Dribble %",
                              "Progressive Carries", "Carries"],
@@ -1854,6 +1862,7 @@ AM_PROFILE_CATEGORIES = {
 # ── Attribute-based grade categories (used for Player Profile header grades) ─
 ATTRIBUTE_GRADE_CATEGORIES = {
     "Attacking": ["Goals", "Non-Penalty Goals", "npxG", "npG-xG (shrunk)",
+                  "Goal Assists", "xA",
                   "Total Shots",
                   "Shots On Target ( inc goals )", "Goals from Inside Box",
                   "Total Touches In Opposition Box",
@@ -2281,16 +2290,21 @@ _ROLE_KPI_PROFILES = {
     },
 }
 
-# Inject the measured xG metrics into every role's finishing category so a
-# striker/winger/CAM is graded on chance quality (npxG) and finishing skill
-# (sample-shrunk npG − xG), not just raw goals/shots.  Done programmatically so
-# all attacking roles stay consistent without editing each profile by hand.
+# Inject the measured xG/xA metrics into every role's attacking categories so a
+# striker/winger/CAM is graded on chance quality (npxG), finishing skill
+# (sample-shrunk npG − xG) and chance creation (xA) — not just raw goals/shots/
+# assists.  Done programmatically so all attacking roles stay consistent without
+# editing each profile by hand.
+_CREATION_CAT_HINTS = ("Creat", "Link-Up", "Playmak", "Chance", "Shot Creation",
+                       "Crossing", "Hold-Up")
 for _role_prof in _ROLE_KPI_PROFILES.values():
     for _cat, (_w, _metrics) in _role_prof.items():
         if _cat == "Finishing":
             for _m in ("npxG", "npG-xG (shrunk)"):
                 if _m not in _metrics:
                     _metrics.append(_m)
+        if any(_h in _cat for _h in _CREATION_CAT_HINTS) and "xA" not in _metrics:
+            _metrics.append("xA")
 
 # ── Ball Security refinement ─────────────────────────────────────────────────
 # (1) "Ball Security" measures ball RETENTION, not pass completion.  Pass % is
@@ -4147,14 +4161,15 @@ def render_profile(data, is_current=True):
             st.caption("🧤 **Saveable GA** (top row) = goals conceded from low-difficulty "
                        "shots (post-shot xG < 0.20) — soft goals that PSxG+/- nets away.")
 
-    # ── Outfield xG / Finishing statline ─────────────────────────────────
+    # ── Outfield xG / xA statline ────────────────────────────────────────
     _npxg_val = row_data.get("npxG")
     if not _is_gk and _npxg_val is not None and not pd.isna(_npxg_val):
         st.markdown("---")
-        st.markdown(f"### ⚽ Expected Goals (xG) & Finishing{mode_label}")
-        st.caption("**npxG** = quality of chances taken (penalties excluded). "
-                   "**Finishing (npG−xG)** = non-penalty goals minus xG — positive is "
-                   "clinical, negative is wasteful. **xG/Shot** = average chance quality.")
+        st.markdown(f"### ⚽ Expected Goals & Assists (xG / xA){mode_label}")
+        st.caption("**npxG** = chance quality (shooting). **Finishing (npG−xG)** = "
+                   "non-penalty goals minus xG (clinical vs wasteful). **xA** = expected "
+                   "assists, the xG of chances created. **npxG+xA** = total expected "
+                   "involvement. Percentiles are vs same-position peers.")
         _pos_peers_xg = peers[peers["posicion"] == position]
 
         def _xg_pct(val, col):
@@ -4163,30 +4178,40 @@ def render_profile(data, is_current=True):
             pv = _pos_peers_xg[col].fillna(0)
             return round((pv < val).sum() / max(len(pv), 1) * 100, 1)
 
+        def _pctd(val, col):
+            p = _xg_pct(val, col)
+            return f"{_ordinal(p)} %ile" if p is not None else None
+
         _fin_val = row_data.get("npG-xG")
         _xgs_val = row_data.get("xG/Shot")
-        _npg_val = row_data.get("Non-Penalty Goals")
-        xc1, xc2, xc3, xc4 = st.columns(4)
+        _xa_val = row_data.get("xA")
+        _inv_val = row_data.get("npxG+xA")
+        xc1, xc2, xc3, xc4, xc5, xc6 = st.columns(6)
         with xc1:
-            st.metric("npxG", f"{_npxg_val:.1f}",
-                      delta=(lambda p: f"{_ordinal(p)} %ile" if p is not None else None)(_xg_pct(_npxg_val, "npxG")),
-                      help="Non-penalty expected goals — the quality of chances taken.")
+            st.metric("npxG", f"{_npxg_val:.1f}", delta=_pctd(_npxg_val, "npxG"),
+                      help="Non-penalty expected goals — quality of chances taken.")
         with xc2:
-            _npg_str = (f"{_npg_val:.1f}" if _npg_val is not None and not pd.isna(_npg_val) else "—")
-            st.metric("Non-Pen Goals", _npg_str)
-        with xc3:
             fin_str = ("—" if _fin_val is None or pd.isna(_fin_val)
                        else (f"+{_fin_val:.1f}" if _fin_val >= 0 else f"{_fin_val:.1f}"))
-            _fr = _xg_pct(row_data.get("npG-xG (shrunk)"), "npG-xG (shrunk)")
-            st.metric("Finishing (npG−xG)", fin_str,
-                      delta=(f"{_ordinal(_fr)} %ile" if _fr is not None else None),
-                      help="Non-penalty goals minus xG; percentile is the sample-shrunk "
-                           "value ranked vs same-position peers.")
+            st.metric("Finishing", fin_str,
+                      delta=_pctd(row_data.get("npG-xG (shrunk)"), "npG-xG (shrunk)"),
+                      help="npG − xG (percentile from the sample-shrunk value).")
+        with xc3:
+            xa_str = (f"{_xa_val:.1f}" if _xa_val is not None and not pd.isna(_xa_val) else "—")
+            st.metric("xA", xa_str, delta=_pctd(_xa_val, "xA"),
+                      help="Expected assists — summed xG of the chances this player created.")
         with xc4:
+            inv_str = (f"{_inv_val:.1f}" if _inv_val is not None and not pd.isna(_inv_val) else "—")
+            st.metric("npxG + xA", inv_str, delta=_pctd(_inv_val, "npxG+xA"),
+                      help="Total expected goal involvement (non-penalty xG + xA).")
+        with xc5:
             xgs_str = (f"{_xgs_val:.3f}" if _xgs_val is not None and not pd.isna(_xgs_val) else "—")
-            st.metric("xG / Shot", xgs_str,
-                      delta=(lambda p: f"{_ordinal(p)} %ile" if p is not None else None)(_xg_pct(_xgs_val, "xG/Shot")),
+            st.metric("xG / Shot", xgs_str, delta=_pctd(_xgs_val, "xG/Shot"),
                       help="Average chance quality per shot taken.")
+        with xc6:
+            _npg_val = row_data.get("Non-Penalty Goals")
+            _npg_str = (f"{_npg_val:.1f}" if _npg_val is not None and not pd.isna(_npg_val) else "—")
+            st.metric("Non-Pen Goals", _npg_str)
 
     # ── FBref Scouting Report ────────────────────────────────────────────
     st.markdown("---")

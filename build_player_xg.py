@@ -67,15 +67,31 @@ def _preshot_features(x, y, is_header, is_big, fast_break, from_corner):
             1.0 if from_corner else 0.0]
 
 
+def _key_passer(events, i, shooter, cid):
+    """The player whose pass created shot *i* (for xA): the most recent
+    successful same-team pass by a teammate before the shot, stopping at a
+    possession change or an earlier shot.  Returns (pid, name) or (None, None)."""
+    for j in range(i - 1, max(i - 7, -1), -1):
+        pe = events[j]
+        pt = pe.get("typeId")
+        if pe.get("contestantId") and pe.get("contestantId") != cid and pt in (1, 2, 3, 13, 14, 15, 16):
+            break                                   # possession changed hands
+        if pt == 1 and pe.get("outcome") == 1 and pe.get("playerId") and pe.get("playerId") != shooter:
+            return pe.get("playerId"), pe.get("playerName")
+        if pt in (13, 14, 15, 16):
+            break                                   # an earlier shot — not this chance
+    return None, None
+
+
 def parse_match(path):
-    """Return a list of shot records attributed to the shooter."""
+    """Return a list of shot records (shooter + xA key-passer attribution)."""
     d = json.load(open(path, encoding="utf-8"))
     events = d.get("liveData", {}).get("event", [])
     cname = {c.get("id"): c.get("name")
              for c in d.get("matchInfo", {}).get("contestant", [])}
 
     shots = []
-    for e in events:
+    for i, e in enumerate(events):
         t = e.get("typeId")
         if t not in SHOT_TYPES:
             continue
@@ -98,6 +114,10 @@ def parse_match(path):
                 float(x), float(y),
                 is_header=(15 in ql), is_big=(214 in ql),
                 fast_break=(23 in ql), from_corner=(25 in ql))
+            # xA: credit the pass that created this shot (open-play shots only)
+            kp, kp_name = _key_passer(events, i, shooter, e.get("contestantId"))
+            rec["key_passer"] = kp
+            rec["key_passer_name"] = kp_name
         shots.append(rec)
     return shots
 
@@ -122,6 +142,9 @@ def collect(seasons):
                     s["liga"] = liga
                     if s["name"] and s["shooter"] not in meta:
                         meta[s["shooter"]] = (s["name"], s["team"])
+                    kp = s.get("key_passer")
+                    if kp and kp not in meta and s.get("key_passer_name"):
+                        meta[kp] = (s["key_passer_name"], s["team"])
                 all_shots.extend(shots)
             print(f"  {liga} {season}: {len(files)} matches")
     print(f"Parsed {n_files} matches -> {len(all_shots)} shot attempts")
@@ -150,19 +173,27 @@ def shot_xg(model, s):
 
 def aggregate(all_shots, model):
     agg = collections.defaultdict(
-        lambda: {"xg": 0.0, "npxg": 0.0, "np_goals": 0, "shots": 0, "np_shots": 0})
+        lambda: {"xg": 0.0, "npxg": 0.0, "np_goals": 0, "shots": 0, "np_shots": 0,
+                 "xa": 0.0, "key_passes": 0, "xa_assists": 0})
     for s in all_shots:
         sh = s["shooter"]
         if not sh:
             continue
-        a = agg[(sh, s["season"], s["liga"])]
         p = shot_xg(model, s)
+        a = agg[(sh, s["season"], s["liga"])]
         a["xg"] += p
         a["shots"] += 1
         if not s["is_pen"]:
             a["npxg"] += p
             a["np_shots"] += 1
             a["np_goals"] += 1 if s["is_goal"] else 0
+            # xA: credit the creator with this shot's xG (open play only)
+            kp = s.get("key_passer")
+            if kp:
+                ca = agg[(kp, s["season"], s["liga"])]
+                ca["xa"] += p
+                ca["key_passes"] += 1
+                ca["xa_assists"] += 1 if s["is_goal"] else 0
     return agg
 
 
@@ -214,6 +245,17 @@ def validate():
     print("\n-- Worst (overperformers vs wasteful) --")
     print(df.tail(10).to_string(index=False, formatters=fmt))
 
+    crows = []
+    for (sh, season, liga), a in agg.items():
+        if a["key_passes"] < 15:
+            continue
+        nm, team = meta.get(sh, (sh, "?"))
+        crows.append((nm, team, liga, a["xa"], a["key_passes"], a["xa_assists"]))
+    cdf = pd.DataFrame(crows, columns=["name", "team", "liga", "xA", "key_passes",
+                                       "assists"]).sort_values("xA", ascending=False)
+    print("\n-- Top creators 2025-26 by xA (>=15 chances created) --")
+    print(cdf.head(15).to_string(index=False, formatters={"xA": "{:.1f}".format}))
+
 
 def build():
     shots, meta = collect(bg.SEASONS)
@@ -230,6 +272,8 @@ def build():
             "npxg_goals": a["np_goals"],
             "shots": a["shots"],
             "np_shots": a["np_shots"],
+            "xA": round(a["xa"], 2),
+            "key_passes": a["key_passes"],
         })
     out = pd.DataFrame(rows).sort_values(["temporada", "liga", "npxG"],
                                          ascending=[False, True, False])
