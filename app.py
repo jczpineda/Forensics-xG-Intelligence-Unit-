@@ -726,8 +726,10 @@ def _load_data_cached(season, _bust):
                                         # GK ratio metrics — already rates, do not re-divide
                                         "Inside Box Save %", "Outside Box Save %",
                                         "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
-                                        # Sample-shrunk season figure — not a per-90 rate
-                                        "PSxG+/- (shrunk)",
+                                        # PSxG model outputs are season-level quality figures
+                                        # (like xG totals) — dividing a +/- differential by 90s
+                                        # is meaningless, so keep them as-is in per-90 mode.
+                                        "PSxG", "PSxG+/-", "PSxG+/- (shrunk)",
                                         # GK rate metrics already normalised — do not re-divide
                                         "Saves/90", "Clean Sheet %"}:
             continue
@@ -754,7 +756,7 @@ def _load_data_cached(season, _bust):
         # GK ratio metrics — already rates, do not re-divide
         "Inside Box Save %", "Outside Box Save %",
         "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
-        "PSxG+/- (shrunk)",
+        "PSxG", "PSxG+/-", "PSxG+/- (shrunk)",
         # GK rate metrics already normalised — do not re-divide
         "Saves/90", "Clean Sheet %",
     }
@@ -1956,17 +1958,21 @@ _ROLE_GRADE_WEIGHTS = {
         "Passing Safety": 0.10,
     },
     # --- Goalkeeper roles ---
+    # Shot-stopping is the core job of every keeper, so it carries a floor of
+    # 0.35 across all GK roles.  Each role still keeps its signature emphasis
+    # (Sweeper → sweeping, Ball-Playing → distribution), but no role lets its
+    # speciality outweigh shot-stopping.
     "Shot-Stopper": {
         "Shot-Stopping": 0.50, "Command": 0.20,
-        "Distribution": 0.10, "Sweeping": 0.10,
+        "Distribution": 0.15, "Sweeping": 0.15,
     },
     "Sweeper Keeper": {
-        "Shot-Stopping": 0.25, "Command": 0.15,
-        "Distribution": 0.20, "Sweeping": 0.35,
+        "Shot-Stopping": 0.35, "Sweeping": 0.30,
+        "Distribution": 0.20, "Command": 0.15,
     },
     "Ball-Playing Goalkeeper": {
-        "Shot-Stopping": 0.25, "Command": 0.15,
-        "Distribution": 0.40, "Sweeping": 0.15,
+        "Shot-Stopping": 0.35, "Distribution": 0.35,
+        "Command": 0.15, "Sweeping": 0.15,
     },
 }
 
@@ -2466,9 +2472,13 @@ FULL_BACK_ROLE_PROFILES = {
 }
 
 GOALKEEPER_ROLE_PROFILES = {
+    # Classify by shot-stopping QUALITY (PSxG+/- vs expectation), not save
+    # volume.  "Saves Made"/"Goals Prevented" mostly reflect how many shots a
+    # keeper's team concedes, so a busy keeper on a weak side looked like a
+    # "shot-stopper" regardless of skill.  Penalties Saved is mostly zero and
+    # only added noise.
     "Shot-Stopper": [
-        "Saves Made", "Goals Prevented", "Save %",
-        "Total Big Chances Saved", "Penalties Saved",
+        "PSxG+/- (shrunk)", "Save %", "Total Big Chances Saved",
     ],
     "Sweeper Keeper": [
         "Recoveries", "Interceptions",
