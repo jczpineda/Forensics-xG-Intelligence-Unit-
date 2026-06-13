@@ -40,7 +40,9 @@ _LOCAL_DIR = os.path.join(_REPO_DIR, "..", "..", "Forensics xG Opta Data")
 OPTA_DIR = _REPO_DIR if os.path.isdir(os.path.join(_REPO_DIR, "Bundesliga")) else _LOCAL_DIR
 
 OUTPUT_CSV = os.path.join(_THIS_DIR, "player_financials.csv")
-FIELDNAMES = ["short_name", "market_value", "salary", "age"]
+# `team` is stored so the app can match by name + team and never apply a famous
+# player's value to an obscure namesake (e.g. two "M. Saka").
+FIELDNAMES = ["short_name", "team", "market_value", "salary", "age"]
 
 LEAGUE_FOLDERS = {
     "Premier League": "English Premier League",
@@ -283,7 +285,9 @@ def load_existing():
         mv = (r.get("market_value") or "").strip()
         sal = (r.get("salary") or "").strip()
         age = (r.get("age") or "").strip()
+        team = (r.get("team") or "").strip()
         out[sn] = {
+            "team": team,
             "market_value": mv if _present(mv) else "",
             "salary": sal if _present(sal) else "",
             "age": age if _present(age) else "",
@@ -300,6 +304,7 @@ def write_csv(rows, order):
             rec = rows.get(sn, {})
             w.writerow({
                 "short_name": sn,
+                "team": rec.get("team", "") or "",
                 "market_value": rec.get("market_value", "") or "",
                 "salary": rec.get("salary", "") or "",
                 "age": rec.get("age", "") or "",
@@ -339,7 +344,7 @@ def main():
     fetched = 0
     for i, p in enumerate(players):
         sn, team = p["short_name"], p["team"]
-        cur = rows.get(sn, {"market_value": "", "salary": "", "age": ""})
+        cur = rows.get(sn, {"team": team, "market_value": "", "salary": "", "age": ""})
         need_mv = not _present(cur.get("market_value"))
         need_sal = not _present(cur.get("salary"))
         need_age = not _present(cur.get("age"))
@@ -366,7 +371,7 @@ def main():
             sal = _fetch_capology_salary(sn, team=team) or ""
             time.sleep(DELAY)
 
-        rows[sn] = {"market_value": mv, "salary": sal, "age": age}
+        rows[sn] = {"team": team, "market_value": mv, "salary": sal, "age": age}
         fetched += 1
         print(f"  [{i + 1}/{len(players)}] {sn} -> "
               f"MV: {mv or 'N/A'} | Salary: {sal or 'N/A'} | Age: {age or 'N/A'}")
@@ -397,11 +402,12 @@ def refresh_values():
     changed = 0
     for i, p in enumerate(players):
         sn, team = p["short_name"], p["team"]
-        cur = rows.get(sn, {"market_value": "", "salary": "", "age": ""})
+        cur = rows.get(sn, {"team": team, "market_value": "", "salary": "", "age": ""})
         new_mv, new_age = _fetch_transfermarkt(sn, team=team)
         time.sleep(DELAY)
         old_mv = cur.get("market_value", "")
         rows[sn] = {
+            "team": team,
             "market_value": new_mv or old_mv,           # keep old if fetch failed
             "salary": cur.get("salary", ""),            # salaries unchanged
             "age": str(new_age) if new_age else cur.get("age", ""),

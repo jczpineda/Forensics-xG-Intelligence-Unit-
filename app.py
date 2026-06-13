@@ -105,11 +105,52 @@ def _load_financials_csv(_bust=0):
         if key:
             mv = r.get("market_value", "")
             sal = r.get("salary", "")
+            age = r.get("age", "") if "age" in df.columns else ""
+            team = r.get("team", "") if "team" in df.columns else ""
             lookup[key] = {
                 "market_value": mv if pd.notna(mv) and mv != "" else None,
                 "salary": sal if pd.notna(sal) and sal != "" else None,
+                "age": age if pd.notna(age) and str(age).strip() != "" else None,
+                "team": team if pd.notna(team) and str(team).strip() != "" else None,
             }
     return lookup
+
+
+def _fin_rec(financials, name, team=None):
+    """Financials row for a player, guarding against shared-name collisions.
+
+    The CSV is keyed by short name, so a famous player's value can sit under a
+    name an obscure player also uses.  When the stored row carries a team and it
+    doesn't match this player's team, treat it as a miss (no value) rather than
+    showing the wrong one."""
+    rec = financials.get(name)
+    if not rec:
+        return {}
+    rec_team = rec.get("team")
+    if team and rec_team and _canon_team(rec_team) != _canon_team(team):
+        return {}
+    return rec
+
+
+def _mv_millions(s):
+    """Parse a Transfermarkt value string ('€75.00m', '€500k', '€1.20bn') to a
+    float in € millions, or NaN."""
+    if s is None or (isinstance(s, float) and pd.isna(s)):
+        return np.nan
+    t = str(s).strip().lower().replace("€", "").replace("€", "").replace(",", "").strip()
+    if not t or t in ("-", "nan", "none"):
+        return np.nan
+    mult = 1.0
+    if t.endswith("bn") or t.endswith("b"):
+        mult, t = 1000.0, t.rstrip("bn")
+    elif t.endswith("m"):
+        mult, t = 1.0, t[:-1]
+    elif t.endswith("k"):
+        mult, t = 0.001, t[:-1]
+    try:
+        return round(float(t) * mult, 3)
+    except ValueError:
+        return np.nan
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -593,6 +634,7 @@ def _data_fingerprint():
                 pass
     mt = max(mt, _csv_mtime(_GK_PSXG_CSV))   # refresh when measured PSxG changes
     mt = max(mt, _csv_mtime(_PLAYER_XG_CSV))  # …and when player xG changes
+    mt = max(mt, _csv_mtime(_FINANCIALS_CSV))  # …and when values/ages change
     return mt
 
 
@@ -795,6 +837,22 @@ def _load_data_cached(season, _bust):
     # ── Drop players with zero minutes ──────────────────────────────
     combined = combined[combined["Time Played"].fillna(0) > 0].reset_index(drop=True)
 
+    # ── Attach current-season financials (age, market value) ────────────
+    # Age feeds Potential Grading and the value model; market value (€m) is the
+    # target the value model is benchmarked against.  Current season only —
+    # financials are scraped for the live squads.
+    if season == CURRENT_SEASON:
+        _fin = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV))
+        if _fin:
+            _recs = [_fin_rec(_fin, n, t)
+                     for n, t in zip(combined["nombre"], combined["equipo"])]
+            combined["age"] = pd.to_numeric(
+                pd.Series([r.get("age") for r in _recs], index=combined.index),
+                errors="coerce")
+            combined["market_value_m"] = pd.Series(
+                [_mv_millions(r.get("market_value")) for r in _recs],
+                index=combined.index)
+
     result["total"] = combined
 
     # ── Compute Per 90 ──────────────────────────────────────────────
@@ -822,6 +880,8 @@ def _load_data_cached(season, _bust):
                                         # xG finishing differentials/rates — not per-90 counts
                                         # (xG / npxG themselves DO divide → xG/90, npxG/90)
                                         "npG-xG", "npG-xG (shrunk)", "xG/Shot",
+                                        # financials — not per-90 quantities
+                                        "age", "market_value_m",
                                         # GK rate metrics already normalised — do not re-divide
                                         "Saves/90", "Clean Sheet %"}:
             continue
@@ -850,6 +910,7 @@ def _load_data_cached(season, _bust):
         "PSxG/Shot", "Penalty Save %", "Caught %", "Claim %",
         "PSxG", "PSxG+/-", "PSxG+/- (shrunk)", "Saveable Goals Conceded",
         "npG-xG", "npG-xG (shrunk)", "xG/Shot",
+        "age", "market_value_m",
         # GK rate metrics already normalised — do not re-divide
         "Saves/90", "Clean Sheet %",
     }
@@ -3257,9 +3318,10 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
     gdf["_role"] = gdf["_role"].fillna(gdf["posicion"])
     gdf["_role"] = gdf["_role"].where(gdf["_role"] != "", gdf["posicion"])
 
-    # Financials lookup (vectorized)
-    _mv_series = gdf["nombre"].map(lambda n: (financials.get(n) or {}).get("market_value") or "—")
-    _sal_series = gdf["nombre"].map(lambda n: (financials.get(n) or {}).get("salary") or "—")
+    # Financials lookup (vectorized, team-guarded against shared-name collisions)
+    _fin_recs = [_fin_rec(financials, n, t) for n, t in zip(gdf["nombre"], gdf.get("equipo", pd.Series("", index=gdf.index)))]
+    _mv_series = pd.Series([(r.get("market_value") or "—") for r in _fin_recs], index=gdf.index)
+    _sal_series = pd.Series([(r.get("salary") or "—") for r in _fin_recs], index=gdf.index)
 
     out = pd.DataFrame({
         "_idx": gdf.index,
@@ -3464,6 +3526,93 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
     # Clean up temp columns
     gdf.drop(columns=["_role"], inplace=True, errors="ignore")
 
+    return out
+
+
+# ── Value model: over/undervalued vs Transfermarkt ───────────────────────────
+# Market value is driven by quality, age, minutes, position and league.  We fit
+# log(€m) on those, then the residual (actual / model) flags players the market
+# prices above or below their on-pitch profile — the scouting signal.  TM is the
+# anchor; this just measures the premium/discount around it.
+
+def _mv_rating(ratio):
+    if ratio is None or pd.isna(ratio):
+        return None
+    if ratio < 0.55:
+        return "Undervalued ↓↓"
+    if ratio < 0.8:
+        return "Undervalued ↓"
+    if ratio <= 1.25:
+        return "Fairly valued"
+    if ratio <= 1.8:
+        return "Overvalued ↑"
+    return "Overvalued ↑↑"
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _compute_value_ratings(_bust):
+    """Per-player market-value model for the current season.
+
+    Returns {(nombre, equipo): {actual, predicted, ratio, rating}} in € millions,
+    or {} when there isn't enough data (e.g. no market values yet)."""
+    data = load_data(CURRENT_SEASON)
+    total = data.get("total")
+    if total is None or total.empty or "market_value_m" not in total.columns:
+        return {}
+
+    lab = _build_player_lab_table(total, total, role_schema=_ROLE_SCHEMA_VERSION,
+                                  foot_bust=_csv_mtime(_FOOT_CSV))
+    df = total.copy()
+    df["_q"] = pd.to_numeric(lab["Overall %ile"].reindex(df.index), errors="coerce")
+    df["_mv"] = pd.to_numeric(df["market_value_m"], errors="coerce")
+    df["_min"] = pd.to_numeric(df.get("estimated_90s"), errors="coerce").fillna(0)
+    df["_age"] = pd.to_numeric(df.get("age"), errors="coerce") if "age" in df.columns else np.nan
+
+    use_age = ("age" in df.columns) and (df["_age"].notna().sum() >= 50)
+    # Age is essential — without it the model misvalues older stars and can't
+    # reach superstar values.  Stay dark until the financials carry ages.
+    if not use_age:
+        return {}
+
+    # Design matrix over all rows (consistent dummy columns), fit on rows with a value.
+    feat = pd.DataFrame({"intercept": 1.0,
+                         "quality": df["_q"].fillna(df["_q"].median()),
+                         "logmin": np.log1p(df["_min"])}, index=df.index)
+    if use_age:
+        _a = df["_age"].fillna(df["_age"].median())
+        feat["age"] = _a
+        feat["age2"] = _a ** 2
+    feat = pd.concat([feat,
+                      pd.get_dummies(df["posicion"], prefix="pos", drop_first=True),
+                      pd.get_dummies(df["league_display"], prefix="lg", drop_first=True)],
+                     axis=1)
+    X = feat.to_numpy(dtype=float)
+
+    train = df["_mv"].notna() & (df["_mv"] > 0) & df["_q"].notna()
+    if use_age:
+        train = train & df["_age"].notna()
+    if int(train.sum()) < 50:
+        return {}
+
+    y = np.log(df["_mv"].to_numpy())
+    tr = train.to_numpy()
+    beta, *_ = np.linalg.lstsq(X[tr], y[tr], rcond=None)
+    pred = np.exp(np.clip(X @ beta, -5, 12))      # €m, guard against extremes
+
+    out = {}
+    nombre = df["nombre"].to_numpy()
+    equipo = df["equipo"].to_numpy()
+    mv = df["_mv"].to_numpy()
+    for i in range(len(df)):
+        if pd.isna(mv[i]) or mv[i] <= 0:
+            continue
+        ratio = float(mv[i] / pred[i]) if pred[i] > 0 else None
+        out[(nombre[i], equipo[i])] = {
+            "actual": round(float(mv[i]), 1),
+            "predicted": round(float(pred[i]), 1),
+            "ratio": round(ratio, 2) if ratio is not None else None,
+            "rating": _mv_rating(ratio),
+        }
     return out
 
 
@@ -3958,7 +4107,8 @@ def render_profile(data, is_current=True):
     # ── Market Value & Salary (current season only) ──────────────────────
     if is_current:
         _player_team = row.get("equipo")
-        _fin = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV)).get(row["nombre"]) or {}
+        _fin = _fin_rec(_load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV)),
+                        row["nombre"], _player_team)
         market_val = _fin.get("market_value")
         salary_val = _fin.get("salary")
         # Fall back to a live (cached) fetch for any value missing from the CSV —
@@ -3975,6 +4125,27 @@ def render_profile(data, is_current=True):
             st.metric("💰 Transfermarkt Market Value", market_val or "N/A")
         with sal_col:
             st.metric("💶 Gross Annual Salary (Capology)", salary_val or "N/A")
+
+        # ── Value vs model (over/undervalued) — needs age, so only shows once
+        # the financials have been refreshed with ages. ──
+        _vr = _compute_value_ratings(_data_fingerprint()).get((row["nombre"], _player_team))
+        if _vr and _vr.get("rating"):
+            vc1, vc2, vc3 = st.columns(3)
+            with vc1:
+                st.metric("Model Expected Value", f"€{_vr['predicted']:.0f}m",
+                          help="Predicted from quality, age, minutes, position and "
+                               "league (log-linear fit on Transfermarkt values).")
+            with vc2:
+                _r = _vr["ratio"]
+                st.metric("Value Rating", _vr["rating"],
+                          delta=f"{_r:.2f}× model", delta_color="off",
+                          help="Actual ÷ model. <1 = market prices him below his "
+                               "on-pitch profile (potentially undervalued).")
+            with vc3:
+                st.metric("Actual ÷ Expected", f"{_vr['ratio']:.2f}×")
+            st.caption("⚖️ Value rating is the market's premium/discount vs a model of "
+                       "players with a similar profile — a scouting signal, not a verdict. "
+                       "Driven heavily by age & league; contract length isn't modelled.")
 
     # Scope: league-only or all leagues
     if scope_mode == "League":
