@@ -3530,10 +3530,17 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
 
 
 # ── Value model: over/undervalued vs Transfermarkt ───────────────────────────
-# Market value is driven by quality, age, minutes, position and league.  We fit
-# log(€m) on those, then the residual (actual / model) flags players the market
-# prices above or below their on-pitch profile — the scouting signal.  TM is the
-# anchor; this just measures the premium/discount around it.
+# Idea: fit market value on quality, age, minutes, position and league, then the
+# residual (actual / model) flags over/undervaluation.  DISABLED: validated on
+# real values + ages it proved unreliable — market value bakes in potential,
+# hype, contract length and brand that on-pitch output + age can't reconstruct,
+# so elite/young/veteran players are badly misvalued (Pedri/Yamal flagged ~8×,
+# Kane → €10m) and >½ of all players land in the extreme buckets.  Kept for a
+# future, better-specified model (needs potential & contract inputs).  The age &
+# market-value data the refresh added still powers Potential Grading and the
+# (now fresh, de-collided) market-value display.
+_VALUE_MODEL_ENABLED = False
+
 
 def _mv_rating(ratio):
     if ratio is None or pd.isna(ratio):
@@ -3555,6 +3562,8 @@ def _compute_value_ratings(_bust):
 
     Returns {(nombre, equipo): {actual, predicted, ratio, rating}} in € millions,
     or {} when there isn't enough data (e.g. no market values yet)."""
+    if not _VALUE_MODEL_ENABLED:
+        return {}
     data = load_data(CURRENT_SEASON)
     total = data.get("total")
     if total is None or total.empty or "market_value_m" not in total.columns:
@@ -3579,9 +3588,12 @@ def _compute_value_ratings(_bust):
                          "quality": df["_q"].fillna(df["_q"].median()),
                          "logmin": np.log1p(df["_min"])}, index=df.index)
     if use_age:
-        _a = df["_age"].fillna(df["_age"].median())
-        feat["age"] = _a
-        feat["age2"] = _a ** 2
+        # Gentle, capped age effect: a single "years past peak (~24)" penalty,
+        # squared but bounded.  age² across the raw range over-penalised elite
+        # veterans (Kane at 32) and adding interactions destabilised the fit.
+        _a = df["_age"].fillna(df["_age"].median()).clip(16, 38)
+        feat["age_pen"] = (_a - 24).clip(lower=0)        # only ages past peak cost value
+        feat["young"] = (24 - _a).clip(lower=0)          # a small youth/upside premium
     feat = pd.concat([feat,
                       pd.get_dummies(df["posicion"], prefix="pos", drop_first=True),
                       pd.get_dummies(df["league_display"], prefix="lg", drop_first=True)],
@@ -3594,10 +3606,17 @@ def _compute_value_ratings(_bust):
     if int(train.sum()) < 50:
         return {}
 
-    y = np.log(df["_mv"].to_numpy())
+    # Rank-based fit: predict where a player RANKS on value (0-100), then map the
+    # predicted rank back to € via the real value quantiles.  A log-€ linear fit
+    # can't reach the €100m+ tail and flagged every elite as "overvalued"; the
+    # rank model keeps predictions inside the real range so the signal is honest.
     tr = train.to_numpy()
-    beta, *_ = np.linalg.lstsq(X[tr], y[tr], rcond=None)
-    pred = np.exp(np.clip(X @ beta, -5, 12))      # €m, guard against extremes
+    v = df["_mv"].to_numpy()[tr]
+    vrank = np.empty(len(v))
+    vrank[v.argsort()] = np.linspace(0.0, 100.0, len(v))
+    beta, *_ = np.linalg.lstsq(X[tr], vrank, rcond=None)
+    pred_rank = np.clip(X @ beta, 0.5, 99.5)
+    pred = np.percentile(v, pred_rank)            # expected € at that rank
 
     out = {}
     nombre = df["nombre"].to_numpy()
