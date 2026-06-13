@@ -40,7 +40,7 @@ _LOCAL_DIR = os.path.join(_REPO_DIR, "..", "..", "Forensics xG Opta Data")
 OPTA_DIR = _REPO_DIR if os.path.isdir(os.path.join(_REPO_DIR, "Bundesliga")) else _LOCAL_DIR
 
 OUTPUT_CSV = os.path.join(_THIS_DIR, "player_financials.csv")
-FIELDNAMES = ["short_name", "market_value", "salary"]
+FIELDNAMES = ["short_name", "market_value", "salary", "age"]
 
 LEAGUE_FOLDERS = {
     "Premier League": "English Premier League",
@@ -119,8 +119,27 @@ def _query_variants(name):
     return out
 
 
-def _fetch_transfermarkt_value(player_name, team=None):
-    """Latest market value (e.g. '€75.00m') from Transfermarkt quick search."""
+def _extract_age(row):
+    """Player age from a Transfermarkt quick-search row, or None.
+
+    The 'Date of birth/Age' cell reads like 'Jun 28, 1990 (35)'; fall back to a
+    plausible standalone integer in a centered cell."""
+    txt = " ".join(c.get_text(" ", strip=True) for c in row.find_all("td"))
+    m = re.search(r"\((\d{2})\)", txt)
+    if m and 14 <= int(m.group(1)) <= 50:
+        return int(m.group(1))
+    for c in row.find_all("td", class_="zentriert"):
+        t = c.get_text(strip=True)
+        if t.isdigit() and 14 <= int(t) <= 50:
+            return int(t)
+    return None
+
+
+def _fetch_transfermarkt(player_name, team=None):
+    """(market_value, age) from Transfermarkt quick search.
+
+    market_value like '€75.00m'; age is an int or None.  Prefers the row whose
+    text contains the team, else the first row with a value."""
     for q in _query_variants(player_name):
         url = ("https://www.transfermarkt.com/schnellsuche/ergebnis/"
                f"schnellsuche?query={urllib.parse.quote(q)}")
@@ -132,7 +151,7 @@ def _fetch_transfermarkt_value(player_name, team=None):
         if not tables:
             continue
         rows = tables[0].find_all("tr", class_=["odd", "even"])
-        best = None
+        best = best_age = None
         for row in rows:
             value_cell = row.find("td", class_=lambda c: c and "rechts" in c and "hauptlink" in c)
             if not value_cell:
@@ -140,15 +159,16 @@ def _fetch_transfermarkt_value(player_name, team=None):
             mv = value_cell.get_text(strip=True)
             if not mv or mv == "-":
                 continue
+            age = _extract_age(row)
             if team:
                 row_text = " ".join(c.get_text(strip=True).lower() for c in row.find_all("td"))
                 if _normalize_name(team) and _normalize_name(team) in row_text:
-                    return mv
+                    return mv, age
             if best is None:
-                best = mv
+                best, best_age = mv, age
         if best:
-            return best
-    return None
+            return best, best_age
+    return None, None
 
 
 _capology_index = None
@@ -262,9 +282,11 @@ def load_existing():
             continue
         mv = (r.get("market_value") or "").strip()
         sal = (r.get("salary") or "").strip()
+        age = (r.get("age") or "").strip()
         out[sn] = {
             "market_value": mv if _present(mv) else "",
             "salary": sal if _present(sal) else "",
+            "age": age if _present(age) else "",
         }
     return out
 
@@ -280,6 +302,7 @@ def write_csv(rows, order):
                 "short_name": sn,
                 "market_value": rec.get("market_value", "") or "",
                 "salary": rec.get("salary", "") or "",
+                "age": rec.get("age", "") or "",
             })
 
 
@@ -301,8 +324,9 @@ def main():
 
     todo = [p for p in players
             if not _present(rows.get(p["short_name"], {}).get("market_value"))
-            or not _present(rows.get(p["short_name"], {}).get("salary"))]
-    print(f"Need to fetch (missing MV and/or salary): {len(todo)} players.\n")
+            or not _present(rows.get(p["short_name"], {}).get("salary"))
+            or not _present(rows.get(p["short_name"], {}).get("age"))]
+    print(f"Need to fetch (missing MV, salary and/or age): {len(todo)} players.\n")
     if not todo:
         print("Nothing to fill — every player already has both values.")
         write_csv(rows, order)
@@ -315,10 +339,11 @@ def main():
     fetched = 0
     for i, p in enumerate(players):
         sn, team = p["short_name"], p["team"]
-        cur = rows.get(sn, {"market_value": "", "salary": ""})
+        cur = rows.get(sn, {"market_value": "", "salary": "", "age": ""})
         need_mv = not _present(cur.get("market_value"))
         need_sal = not _present(cur.get("salary"))
-        if not need_mv and not need_sal:
+        need_age = not _present(cur.get("age"))
+        if not need_mv and not need_sal and not need_age:
             rows[sn] = cur
             continue
 
@@ -329,17 +354,22 @@ def main():
         # (e.g. "B. Saka" -> "Fabrice N'Sakala", "A. Wharton" -> "Scott Wharton").
         mv = cur.get("market_value", "") or ""
         sal = cur.get("salary", "") or ""
-        if need_mv:
-            mv = _fetch_transfermarkt_value(sn, team=team) or ""
+        age = cur.get("age", "") or ""
+        if need_mv or need_age:
+            new_mv, new_age = _fetch_transfermarkt(sn, team=team)
+            if need_mv and new_mv:
+                mv = new_mv
+            if new_age:
+                age = str(new_age)
             time.sleep(DELAY)
         if need_sal:
             sal = _fetch_capology_salary(sn, team=team) or ""
             time.sleep(DELAY)
 
-        rows[sn] = {"market_value": mv, "salary": sal}
+        rows[sn] = {"market_value": mv, "salary": sal, "age": age}
         fetched += 1
         print(f"  [{i + 1}/{len(players)}] {sn} -> "
-              f"MV: {mv or 'N/A'} | Salary: {sal or 'N/A'}")
+              f"MV: {mv or 'N/A'} | Salary: {sal or 'N/A'} | Age: {age or 'N/A'}")
 
         if fetched % CHECKPOINT_EVERY == 0:
             write_csv(rows, order)
@@ -353,5 +383,43 @@ def main():
     print(f"Output: {OUTPUT_CSV}")
 
 
+def refresh_values():
+    """Re-fetch market value + age for EVERY player (overwriting), keeping the
+    existing Capology salary.  Use when Transfermarkt values have moved — the
+    default gap-fill never re-fetches a value it already has.
+
+        python build_financials_csv.py refresh
+    """
+    print("Refreshing ALL Transfermarkt market values + ages…")
+    players = collect_players()
+    order = [p["short_name"] for p in players]
+    rows = load_existing()
+    changed = 0
+    for i, p in enumerate(players):
+        sn, team = p["short_name"], p["team"]
+        cur = rows.get(sn, {"market_value": "", "salary": "", "age": ""})
+        new_mv, new_age = _fetch_transfermarkt(sn, team=team)
+        time.sleep(DELAY)
+        old_mv = cur.get("market_value", "")
+        rows[sn] = {
+            "market_value": new_mv or old_mv,           # keep old if fetch failed
+            "salary": cur.get("salary", ""),            # salaries unchanged
+            "age": str(new_age) if new_age else cur.get("age", ""),
+        }
+        if new_mv and new_mv != old_mv:
+            changed += 1
+            print(f"  [{i + 1}/{len(players)}] {sn}: {old_mv or 'N/A'} -> {new_mv}"
+                  f"  (age {rows[sn]['age'] or 'N/A'})")
+        if (i + 1) % CHECKPOINT_EVERY == 0:
+            write_csv(rows, order)
+            print(f"    …checkpoint ({i + 1}/{len(players)}, {changed} changed)")
+    write_csv(rows, order)
+    print(f"\nDone. {changed} market values changed. Output: {OUTPUT_CSV}")
+
+
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "refresh":
+        refresh_values()
+    else:
+        main()
