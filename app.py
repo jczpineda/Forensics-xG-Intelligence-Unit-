@@ -834,6 +834,27 @@ def _load_data_cached(season, _bust):
             combined.loc[cam_idx, "posicion"] = "Attacking Midfield"
             combined.loc[cam_idx, "posicion_detail"] = "CAM"
 
+    # ── Sub-classify forwards into Striker vs Wingers ───────────────
+    # Opta lumps every forward into "Forward" → "Striker", so wide players
+    # (and the Wingers roles) never surface.  Split on wide-play (crossing,
+    # dribbling) vs central play (box touches, headers, aerials, big chances).
+    _FWD_WIDE = ["Successful Crosses open play", "Unsuccessful Crosses open play",
+                 "Successful Crosses & Corners", "Successful Dribbles"]
+    _FWD_CENTRAL = ["Headed Goals", "Goals from Inside Box", "Total Big Chances Scored",
+                    "Aerial Duels won", "Total Touches In Opposition Box"]
+    fwd_mask = combined["posicion"] == "Striker"
+    if fwd_mask.sum() > 10:
+        wide_avail = [m for m in _FWD_WIDE if m in combined.columns]
+        central_avail = [m for m in _FWD_CENTRAL if m in combined.columns]
+        if wide_avail and central_avail:
+            fwd_idx = combined.index[fwd_mask]
+            wide_pct = combined.loc[fwd_idx, wide_avail].rank(pct=True).mean(axis=1)
+            central_pct = combined.loc[fwd_idx, central_avail].rank(pct=True).mean(axis=1)
+            balance = wide_pct - central_pct
+            wing_idx = balance[balance > 0].index
+            combined.loc[wing_idx, "posicion"] = "Wingers"
+            combined.loc[wing_idx, "posicion_detail"] = "Winger"
+
     # ── Drop players with zero minutes ──────────────────────────────
     combined = combined[combined["Time Played"].fillna(0) > 0].reset_index(drop=True)
 
