@@ -4303,7 +4303,9 @@ def render_profile(data, is_current=True):
         ib_sv_pct = row_data.get("Inside Box Save %")
         ob_sv_pct = row_data.get("Outside Box Save %")
         sv_pct    = row_data.get("Save %")
-        bc_saved   = 0 if pd.isna(_v := row_data.get("Total Big Chances Saved")) else (_v or 0)
+        _bc_raw    = row_data.get("Total Big Chances Saved")
+        bc_missing = _bc_raw is None or pd.isna(_bc_raw)   # not tracked (e.g. older seasons)
+        bc_saved   = 0 if bc_missing else (_bc_raw or 0)
         pens_faced = 0 if pd.isna(_v := row_data.get("Penalties Faced"))         else (_v or 0)
         pens_saved = 0 if pd.isna(_v := row_data.get("Penalties Saved"))         else (_v or 0)
         pen_sv_pct = round(pens_saved / pens_faced * 100, 1) if pens_faced > 0 else None
@@ -4387,8 +4389,13 @@ def render_profile(data, is_current=True):
             st.dataframe(pen_df, use_container_width=True, hide_index=True)
         with bc_col:
             st.markdown("**⚡ Big Chances**")
-            bc_df = pd.DataFrame([{"Big Chances Saved": int(bc_saved)}])
+            # Show "—" when the season's feed doesn't track this stat (older
+            # seasons) rather than a misleading "0".
+            bc_df = pd.DataFrame([{"Big Chances Saved": "—" if bc_missing else int(bc_saved)}])
             st.dataframe(bc_df, use_container_width=True, hide_index=True)
+            if bc_missing:
+                st.caption("Not tracked this season — PSxG is unaffected (it's measured "
+                           "from shot locations in the event data, not this stat).")
         with psxg_shot_col:
             st.markdown("**📊 Shot Quality**")
             sq_str = f"{psxg_shot_val:.3f}" if psxg_shot_val is not None else "—"
