@@ -797,11 +797,15 @@ def _load_data_cached(season, _bust):
     # ── Sub-classify defenders into CB vs FB ───────────────────────
     # Opta only provides "Defender" — use wide-attacking vs central-defensive
     # balance to split into Centre-Back vs Full-Back.
-    _DEF_WIDE = ["Successful Crosses & Corners", "Successful Crosses open play",
-                 "Successful Dribbles", "Key Passes (Attempt Assists)",
-                 "Total Touches In Opposition Box"]
-    _DEF_CENTRAL = ["Aerial Duels won", "Total Clearances", "Blocked Shots",
-                    "Blocks", "Headed Goals", "Interceptions"]
+    # Full-backs are defined by attacking the FLANK (crossing, wide dribbling) —
+    # not by being a ball-player.  Key Passes / box touches were flagging
+    # ball-playing centre-backs (e.g. Militão) as full-backs, so the "wide" set
+    # is crossing-led, and a margin keeps borderline defenders as CB (the safer
+    # default) rather than a hard 50/50 median split.
+    _DEF_WIDE = ["Successful Crosses open play", "Unsuccessful Crosses open play",
+                 "Successful Crosses & Corners", "Successful Dribbles"]
+    _DEF_CENTRAL = ["Aerial Duels won", "Aerial Duels", "Total Clearances",
+                    "Blocked Shots", "Headed Goals", "Interceptions"]
     def_mask = combined["posicion"] == "Centre-Back"
     if def_mask.sum() > 10:
         wide_avail = [m for m in _DEF_WIDE if m in combined.columns]
@@ -811,7 +815,7 @@ def _load_data_cached(season, _bust):
             wide_pct = combined.loc[def_idx, wide_avail].rank(pct=True).mean(axis=1)
             central_pct = combined.loc[def_idx, central_avail].rank(pct=True).mean(axis=1)
             balance = wide_pct - central_pct
-            fb_idx = balance[balance > 0].index
+            fb_idx = balance[balance > 0.08].index
             combined.loc[fb_idx, "posicion"] = "Full-Back"
             combined.loc[fb_idx, "posicion_detail"] = "FB"
 
@@ -5283,13 +5287,16 @@ def _find_similar_players(df, player_row, position, metrics, n=10, detail_positi
         _pid = _byname[0]
     player_vec = pct_df.loc[_pid].values.astype(float)
 
-    # Cosine similarity
-    norms = np.linalg.norm(pct_df.values, axis=1) * np.linalg.norm(player_vec)
-    norms[norms == 0] = 1
-    cos_sim = pct_df.values.dot(player_vec) / norms
+    # Euclidean similarity on the percentile vectors.  Cosine (angle-only) treats
+    # an all-90th-pct player as similar to an all-50th-pct one and inflates
+    # everything for these all-positive vectors; Euclidean measures closeness in
+    # actual levels, so "similar" means similar output across the metrics.
+    dist = np.linalg.norm(pct_df.values - player_vec, axis=1)
+    max_dist = np.sqrt(len(avail)) or 1.0
+    sim = (1.0 - dist / max_dist).clip(0, 1)
 
     peers = peers.copy()
-    peers["Similarity %"] = (cos_sim * 100).round(1)
+    peers["Similarity %"] = (sim * 100).round(1)
     # Exclude only the selected player (keep any same-named different player)
     peers = peers[peers.index != _pid]
     return peers.nlargest(n, "Similarity %")
@@ -5794,11 +5801,13 @@ def _render_find_similar(df, mode_label):
         similar = pd.DataFrame()
         if _pid is not None:
             player_vec = pct_df.loc[_pid].values.astype(float)
-            norms = np.linalg.norm(pct_df.values, axis=1) * np.linalg.norm(player_vec)
-            norms[norms == 0] = 1
-            cos_sim = pct_df.values.dot(player_vec) / norms
+            # Euclidean similarity (see _find_similar_players) — closeness in
+            # actual percentile levels, not just direction.
+            dist = np.linalg.norm(pct_df.values - player_vec, axis=1)
+            max_dist = np.sqrt(len(avail)) or 1.0
+            sim = (1.0 - dist / max_dist).clip(0, 1)
             peers = peers.copy()
-            peers["Similarity %"] = (cos_sim * 100).round(1)
+            peers["Similarity %"] = (sim * 100).round(1)
             peers = peers[peers.index != _pid]
             similar = peers.nlargest(n_results, "Similarity %")
     else:
