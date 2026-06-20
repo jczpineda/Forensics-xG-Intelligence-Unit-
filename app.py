@@ -6135,9 +6135,15 @@ def _overall_pct_for_row(row_data, position, season_df, role):
         return 0.0
     if weights:
         ws = sum(weights.get(k, 0) for k in pcts)
-        if ws > 0:
-            return sum(pcts[k] * weights.get(k, 0) for k in pcts) / ws
-    return sum(pcts.values()) / len(pcts)
+        base = (sum(pcts[k] * weights.get(k, 0) for k in pcts) / ws
+                if ws > 0 else sum(pcts.values()) / len(pcts))
+    else:
+        base = sum(pcts.values()) / len(pcts)
+    # Apply the same Key-Strengths uplift the Lab/Profile grades use, so the
+    # trajectory and Potential grade line up with the headline grade elsewhere.
+    pos_peers = season_df[season_df["posicion"] == position]
+    ks = _compute_key_strength_bonus(row_data, pos_peers, position == "Goalkeeper")
+    return min(99.9, base + ks)
 
 
 @st.cache_data(show_spinner="Building career trajectory…")
@@ -6383,13 +6389,18 @@ less certain the further out you look.
     _ov_pcts = {k: pct for k, (_, pct) in attr_grades_ov.items() if pct is not None}
     if _ov_pcts and _ov_weights:
         _w_sum = sum(_ov_weights.get(k, 0) for k in _ov_pcts)
-        current_pct = (
+        _base_pct = (
             sum(_ov_pcts[k] * _ov_weights.get(k, 0) for k in _ov_pcts) / _w_sum
             if _w_sum > 0 else sum(_ov_pcts.values()) / len(_ov_pcts)
         )
     else:
-        current_pct = sum(_ov_pcts.values()) / len(_ov_pcts) if _ov_pcts else 0.0
-    current_pct = round(current_pct, 1)
+        _base_pct = sum(_ov_pcts.values()) / len(_ov_pcts) if _ov_pcts else 0.0
+    # Apply the same uplift the Player Profile headline grade uses (Key-Strengths
+    # + exceptional contribution, capped +8) so the two never disagree.
+    _pos_peers_pot = grade_pool[grade_pool["posicion"] == position]
+    _ks_pot = _compute_key_strength_bonus(grade_row, _pos_peers_pot, position == "Goalkeeper")
+    _exc_pot = _compute_exceptional_contribution(grade_row, position, role, grade_pool)[2]
+    current_pct = round(min(99.9, _base_pct + min(8.0, _ks_pot + _exc_pot)), 1)
     current_grade = _percentile_to_grade(current_pct)
 
     # ── Multi-season trajectory & form momentum (tracked by stable id) ────
