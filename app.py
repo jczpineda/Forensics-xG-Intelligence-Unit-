@@ -6141,26 +6141,42 @@ def _overall_pct_for_row(row_data, position, season_df, role):
 
 
 @st.cache_data(show_spinner="Building career trajectory…")
-def _build_trajectory(player_id, min_minutes=600, _schema=_ROLE_SCHEMA_VERSION, _bust=0):
+def _build_trajectory(player_id, min_minutes=600, stat_mode="Total",
+                      _schema=_ROLE_SCHEMA_VERSION, _bust=0):
     """Per-season overall percentile for a player, tracked by stable Opta id.
     Returns chronological [{season, pct, mins, team, role, reliable}].
-    Seasons below *min_minutes* are kept (for context) but flagged unreliable."""
+    Seasons below *min_minutes* are kept (for context) but flagged unreliable.
+
+    *stat_mode*: "Total" grades on season totals; "Per 90" grades the player's
+    per-90 row against the season's ≥900-minute starters (the fair per-90 pool).
+    Role is always classified from totals (volume-based) for consistency."""
+    is_p90 = stat_mode == "Per 90"
     traj = []
     for sea in sorted(get_available_seasons()):  # chronological ascending
-        d = load_data(sea)["total"]
-        if d.empty or "id" not in d.columns:
+        full = load_data(sea)
+        dt = full["total"]
+        if dt.empty or "id" not in dt.columns:
             continue
-        m = d[d["id"] == player_id]
-        if m.empty:
+        mt = dt[dt["id"] == player_id]
+        if mt.empty:
             continue
-        r = m.iloc[0]
-        mins = int(r.get("Time Played", 0) or 0)
-        pos = r.get("posicion", "Unknown")
-        role = _classify_role(r, pos, d)
+        rt = mt.iloc[0]
+        mins = int(rt.get("Time Played", 0) or 0)
+        pos = rt.get("posicion", "Unknown")
+        role = _classify_role(rt, pos, dt)            # role from totals
         reliable = mins >= min_minutes
-        pct = round(_overall_pct_for_row(dict(r), pos, d, role), 1) if reliable else None
+        pct = None
+        if reliable:
+            if is_p90:
+                dp = full.get("per90")
+                mp = dp[dp["id"] == player_id] if dp is not None else dt.iloc[0:0]
+                if not mp.empty:
+                    pool = dp[(dp["estimated_90s"].fillna(0) >= 10) | (dp["id"] == player_id)]
+                    pct = round(_overall_pct_for_row(dict(mp.iloc[0]), pos, pool, role), 1)
+            else:
+                pct = round(_overall_pct_for_row(dict(rt), pos, dt, role), 1)
         traj.append({"season": sea, "pct": pct, "mins": mins,
-                     "team": r.get("equipo", ""), "role": role, "reliable": reliable})
+                     "team": rt.get("equipo", ""), "role": role, "reliable": reliable})
     return traj
 
 
@@ -6267,9 +6283,13 @@ def render_potential_grading(data, is_current=True):
     with st.expander("ℹ️ How it works", expanded=False):
         st.markdown(
             """
-**Data basis:** Grades are Europe-wide percentile rankings vs same-position peers. The model
-now tracks each player across seasons (2020-21 → present) by their stable Opta id to read
-their **actual form trajectory**, not just a single snapshot.
+**Data basis:** Grades are Europe-wide percentile rankings. The selected **role** sets which
+KPIs and weights are graded (so a Defensive Midfielder and a Ball-Winning Midfielder are judged
+on different metrics), while the **peer pool is the player's position** — role-curated metrics
+give the role lens without the small-sample noise of filtering peers down to exact role-mates.
+**Grade basis** can be **Total** or **Per 90** (per-90 judges per-minute output vs ≥900-minute
+starters — better for prospects on limited minutes). The model tracks each player across seasons
+(2020-21 → present) by stable Opta id to read their **actual form trajectory**, not a snapshot.
 
 **Form momentum (new):** The season-over-season slope of the player's overall percentile is
 blended into the forecast — a player genuinely improving gets a higher ceiling; a declining
@@ -6320,7 +6340,7 @@ less certain the further out you look.
     # Position / Role override (same pattern as Player Profile)
     _all_positions = sorted(POSITION_ROLE_PROFILES.keys())
     _orig_idx = _all_positions.index(orig_position) if orig_position in _all_positions else 0
-    ov1, ov2 = st.columns(2)
+    ov1, ov2, ov3 = st.columns(3)
     with ov1:
         position = st.selectbox(
             "Position", _all_positions, index=_orig_idx, key="pot_pos",
@@ -6334,10 +6354,26 @@ less certain the further out you look.
             role = st.selectbox("Role", _avail_roles, index=_role_idx, key="pot_role")
         else:
             st.selectbox("Role", [role], key="pot_role")
+    with ov3:
+        pot_stat_mode = st.radio(
+            "Grade basis", ["Total", "Per 90"], horizontal=True, key="pot_stat_mode",
+            help="Per 90 grades per-minute output (better for prospects on limited "
+                 "minutes); it ranks the player against ≥900-minute starters.",
+        )
 
     # ── Compute current Europe-wide overall grade ────────────────────────
+    # Per-90: grade the player's per-90 row against ≥900-minute starters (+ self).
+    if pot_stat_mode == "Per 90":
+        _p90 = data["per90"]
+        _is_self = (_p90["nombre"] == player_sel) & (_p90["equipo"] == _sel_team)
+        grade_pool = _p90[(_p90["estimated_90s"].fillna(0) >= 10) | _is_self]
+        _grow = _p90[_is_self]
+        grade_row = dict(_grow.iloc[0]) if not _grow.empty else dict(row)
+    else:
+        grade_pool = df_total
+        grade_row = dict(row)
     attr_grades_ov = _compute_attribute_grades(
-        dict(row), position, df_total, league=None, kpi_role=role
+        grade_row, position, grade_pool, league=None, kpi_role=role
     )
     _kpi = _ROLE_KPI_PROFILES.get(role)
     _ov_weights = (
@@ -6358,7 +6394,8 @@ less certain the further out you look.
 
     # ── Multi-season trajectory & form momentum (tracked by stable id) ────
     _pid = row.get("id")
-    _traj = _build_trajectory(_pid, _bust=_data_fingerprint()) if (_pid is not None and not pd.isna(_pid)) else []
+    _traj = (_build_trajectory(_pid, stat_mode=pot_stat_mode, _bust=_data_fingerprint())
+             if (_pid is not None and not pd.isna(_pid)) else [])
     # Anchor the current season's point to the displayed grade (user role/pos).
     for _t in _traj:
         if _t["season"] == CURRENT_SEASON:
