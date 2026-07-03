@@ -3284,8 +3284,9 @@ def _fmt_euros(val):
 def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_schema="", foot_bust=0):
     """Pre-compute grades and roles for every player (vectorized, cached 24 h).
 
-    *grade_df* is the DataFrame used for percentile grading (Total or Per 90).
-    *role_df*  is always the Total DataFrame (role classification uses season totals).
+    *grade_df* is the DataFrame used for grading AND role classification, so the
+    overall grade reflects each player's best-fit role in the current lens
+    (Total / Per-90 / Padj).  *role_df* is retained for signature compatibility.
     """
     financials = _load_financials_csv(_bust=_csv_mtime(_FINANCIALS_CSV))
     gdf = grade_df.copy()
@@ -3353,18 +3354,21 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
             continue
         _lg_mpct[(pos, lg)] = gdf.loc[group.index, _metric_cols].fillna(0).rank(pct=True) * 100
 
-    # ── Classify roles (always from total data) ─────────────────────────
+    # ── Classify roles in the CURRENT grade lens ─────────────────────────
+    # Role is graded on whatever frame is being shown (Total / Per-90 / Padj) so
+    # the overall grade reflects the player's best-fit role in that lens — a
+    # deep mid can be a Deep-Lying Playmaker on totals but a Ball-Winner on
+    # per-90 possession-adjusted, and each should grade at that best fit.
     role_map = {}
     elig_map = {}
-    for position in role_df["posicion"].unique():
+    for position in gdf["posicion"].unique():
         if position in POSITION_ROLE_PROFILES:
-            roles = _classify_position_roles(role_df, position, role_schema=_ROLE_SCHEMA_VERSION)
+            roles = _classify_position_roles(gdf, position, role_schema=_ROLE_SCHEMA_VERSION)
             for r_idx, r_role in roles.items():
-                name = role_df.at[r_idx, "nombre"]
-                role_map[name] = r_role
-            elig = _eligible_roles_map(role_df, position)
+                role_map[gdf.at[r_idx, "nombre"]] = r_role
+            elig = _eligible_roles_map(gdf, position)
             for r_idx, r_roles in elig.items():
-                elig_map[role_df.at[r_idx, "nombre"]] = r_roles
+                elig_map[gdf.at[r_idx, "nombre"]] = r_roles
 
     # ── Vectorized grade conversion helper ──────────────────────────────
     _bins = [0, 45, 50, 55, 60, 63, 67, 70, 73, 77, 80, 83, 87, 90, 93, 97, 100.01]
@@ -3788,8 +3792,8 @@ def render_player_lab(data, is_current=True):
                        sorted(_available_in_pool - set(_ROLE_ORDER))
         sel_roles = st.multiselect("Role", role_options, default=[], key="lab_roles")
         if sel_roles:
-            st.caption("Includes versatile players who also fit this role (their column "
-                       "shows their primary role).")
+            st.caption("Includes versatile players who also fit this role. Grades reflect "
+                       "each player's best-fit role in the current stat mode.")
     with f4:
         sel_squad_roles = st.multiselect("Squad Role", ["Starter", "Rotation", "Depth"],
                                          default=[], key="lab_squad_roles",
@@ -3926,13 +3930,13 @@ def render_player_lab(data, is_current=True):
     # When a specific league is selected, hide the Overall columns
     _show_potential = is_current and grade_basis == "Potential Grade"
     if sel_leagues:
-        display_cols = ["Player", "Team", "League", "Pos", "Foot", "Role", "Squad Role",
+        display_cols = ["Player", "Team", "League", "Pos", "Foot", "Squad Role",
                         "Top Strength", "League Grade", "League %ile"]
         if _show_potential:
             display_cols += ["Potential Grade", "Potential %ile"]
         display_cols += _attr_display + _fin_cols
     else:
-        display_cols = ["Player", "Team", "League", "Pos", "Foot", "Role", "Squad Role",
+        display_cols = ["Player", "Team", "League", "Pos", "Foot", "Squad Role",
                         "Top Strength", "Overall Grade", "Overall %ile",
                         "League Grade", "League %ile"]
         if _show_potential:
@@ -3985,7 +3989,14 @@ def render_profile(data, is_current=True):
             help="Override when a player's Opta position doesn't match their current role (e.g. formation change).",
         )
     _position_changed = position != _orig_position
-    role = _classify_role(row, position, df_total)
+    # Default role reflects the active stat lens (mode + possession-adjust) so the
+    # Profile default and the Player Lab agree on a player's best-fit role — a
+    # deep mid can be a Deep-Lying Playmaker on totals but a Ball-Winner on
+    # per-90 possession-adjusted.  The user can still override below.
+    _lens_df = _select_df(data, st.session_state.get("prof_stat_mode", "Total"))
+    _lens_prow = _lens_df[(_lens_df["nombre"] == player_sel) & (_lens_df["equipo"] == _sel_team)]
+    _role_src_row = _lens_prow.iloc[0] if not _lens_prow.empty else row
+    role = _classify_role(_role_src_row, position, _lens_df)
     _available_roles = list(POSITION_ROLE_PROFILES.get(position, {}).keys())
     with ov2:
         if _available_roles:
