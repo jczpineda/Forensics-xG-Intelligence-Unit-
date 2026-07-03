@@ -2937,6 +2937,40 @@ def _classify_position_roles(df_total, position, role_schema=""):
     return role_df.idxmax(axis=1)
 
 
+# A player is "eligible" for every role scoring within this many percentile
+# points of their best-fit role — so versatile players (e.g. a deep mid strong
+# as both a Deep-Lying Playmaker and a Defensive Midfielder) surface under all
+# the roles they fit, not just their single top one.
+_ROLE_ELIGIBILITY_MARGIN = 6.0
+
+
+def _eligible_roles_map(df_total, position):
+    """{index → tuple of roles the player fits} for one position.  Mirrors the
+    scoring in _classify_position_roles but keeps every role within the margin
+    of the player's best (always includes their primary role)."""
+    profiles = POSITION_ROLE_PROFILES.get(position)
+    if not profiles:
+        return pd.Series(dtype=object)
+    pos_df = df_total[df_total["posicion"] == position]
+    if pos_df.empty:
+        return pd.Series(dtype=object)
+    all_metrics = sorted({m for metrics in profiles.values() for m in metrics
+                          if m in pos_df.columns and not m.startswith("% ")})
+    if not all_metrics:
+        return pd.Series([(position,)] * len(pos_df), index=pos_df.index)
+    pct_ranks = pos_df[all_metrics].fillna(0).rank(pct=True) * 100
+    role_avgs = {role: pct_ranks[[m for m in metrics
+                                  if m in pct_ranks.columns and not m.startswith("% ")]].mean(axis=1)
+                 for role, metrics in profiles.items()
+                 if any(m in pct_ranks.columns and not m.startswith("% ") for m in metrics)}
+    if not role_avgs:
+        return pd.Series([(position,)] * len(pos_df), index=pos_df.index)
+    role_df = pd.DataFrame(role_avgs, index=pos_df.index)
+    thresh = role_df.max(axis=1) - _ROLE_ELIGIBILITY_MARGIN
+    elig = role_df.ge(thresh, axis=0)
+    return elig.apply(lambda r: tuple(role_df.columns[r.to_numpy()]), axis=1)
+
+
 def _compute_attribute_grades(row_data, position, df_total, league=None, role=None,
                                df_role_ref=None, kpi_role=None):
     """Compute per-attribute grades for a player vs peers.
@@ -3321,12 +3355,16 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
 
     # ── Classify roles (always from total data) ─────────────────────────
     role_map = {}
+    elig_map = {}
     for position in role_df["posicion"].unique():
         if position in POSITION_ROLE_PROFILES:
             roles = _classify_position_roles(role_df, position, role_schema=_ROLE_SCHEMA_VERSION)
             for r_idx, r_role in roles.items():
                 name = role_df.at[r_idx, "nombre"]
                 role_map[name] = r_role
+            elig = _eligible_roles_map(role_df, position)
+            for r_idx, r_roles in elig.items():
+                elig_map[role_df.at[r_idx, "nombre"]] = r_roles
 
     # ── Vectorized grade conversion helper ──────────────────────────────
     _bins = [0, 45, 50, 55, 60, 63, 67, 70, 73, 77, 80, 83, 87, 90, 93, 97, 100.01]
@@ -3359,6 +3397,11 @@ def _build_player_lab_table(grade_df, role_df, mode_label="", pot_years=3, role_
         "Market Value": _mv_series.values,
         "Salary": _sal_series.values,
     }, index=gdf.index)
+
+    # Roles a player also fits (within the eligibility margin) — used to make the
+    # role filter surface versatile players, not just their single best-fit role.
+    out["_eligible"] = gdf["nombre"].map(elig_map).apply(
+        lambda x: tuple(x) if isinstance(x, (tuple, list)) else ())
 
     # Squad Role by share of the season (fair across 33–37 game leagues)
     _mins = gdf["Time Played"].fillna(0) if "Time Played" in gdf.columns else gdf["estimated_90s"].fillna(0) * 90
@@ -3744,6 +3787,9 @@ def render_player_lab(data, is_current=True):
         role_options = [r for r in _ROLE_ORDER if r in _available_in_pool] + \
                        sorted(_available_in_pool - set(_ROLE_ORDER))
         sel_roles = st.multiselect("Role", role_options, default=[], key="lab_roles")
+        if sel_roles:
+            st.caption("Includes versatile players who also fit this role (their column "
+                       "shows their primary role).")
     with f4:
         sel_squad_roles = st.multiselect("Squad Role", ["Starter", "Rotation", "Depth"],
                                          default=[], key="lab_squad_roles",
@@ -3805,7 +3851,14 @@ def render_player_lab(data, is_current=True):
     if sel_positions:
         filtered = filtered[filtered["Position"].isin(sel_positions)]
     if sel_roles:
-        filtered = filtered[filtered["Role"].isin(sel_roles)]
+        # Match the player's primary role OR any role they also fit (eligibility),
+        # so versatile players surface under every role they're strong in.
+        _sel_set = set(sel_roles)
+        if "_eligible" in filtered.columns:
+            _elig_mask = filtered["_eligible"].apply(lambda rs: bool(_sel_set & set(rs)))
+            filtered = filtered[filtered["Role"].isin(sel_roles) | _elig_mask]
+        else:
+            filtered = filtered[filtered["Role"].isin(sel_roles)]
     if sel_squad_roles:
         filtered = filtered[filtered["Squad Role"].isin(sel_squad_roles)]
     if sel_feet:
