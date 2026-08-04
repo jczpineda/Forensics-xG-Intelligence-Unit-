@@ -43,10 +43,18 @@ import pandas as pd
 
 _THIS = os.path.dirname(os.path.abspath(__file__))
 _SRC_ROOT = os.path.join(_THIS, "..", "..", "Forensics xG Opta Data")
+# The Eredivisie drop lives in its own sibling folder (its raw data isn't inside
+# "Forensics xG Opta Data"), so resolve its partidos separately.
+_ERE_SRC = os.path.join(_THIS, "..", "..", "Netherlands_Eredivisie")
 _OUT = os.path.join(_THIS, "gk_psxg.csv")
 
 LEAGUES = ["Bundesliga", "English Premier League", "LaLiga",
-           "Ligue 1", "Primeira Liga", "Serie A"]
+           "Ligue 1", "Primeira Liga", "Serie A", "Eredivisie"]
+
+
+def _partidos_dir(liga, season):
+    root = _ERE_SRC if liga == "Eredivisie" else os.path.join(_SRC_ROOT, liga)
+    return os.path.join(root, season, "partidos")
 SEASONS = ["2020-2021", "2021-2022", "2022-2023",
            "2023-2024", "2024-2025", "2025-2026"]
 
@@ -267,7 +275,7 @@ def collect(seasons):
     n_files = 0
     for liga in LEAGUES:
         for season in seasons:
-            pdir = os.path.join(_SRC_ROOT, liga, season, "partidos")
+            pdir = _partidos_dir(liga, season)
             files = sorted(glob.glob(os.path.join(pdir, "*.json")))
             if not files:
                 continue

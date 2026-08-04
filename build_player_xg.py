@@ -126,7 +126,7 @@ def collect(seasons):
     all_shots, meta, n_files = [], {}, 0
     for liga in bg.LEAGUES:
         for season in seasons:
-            pdir = os.path.join(bg._SRC_ROOT, liga, season, "partidos")
+            pdir = bg._partidos_dir(liga, season)
             files = sorted(glob.glob(os.path.join(pdir, "*.json")))
             if not files:
                 continue

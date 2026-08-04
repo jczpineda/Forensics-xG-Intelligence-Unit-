@@ -1,7 +1,7 @@
 """
 FORENSICS XG: INTELLIGENCE UNIT
 Football Analytics — Interactive data analysis tool.
-Ask questions and get charts, stats, and insights from Europe's top 6 leagues.
+Ask questions and get charts, stats, and insights from Europe's top 7 leagues.
 Data source: Opta 2025-2026 season.
 """
 
@@ -40,6 +40,7 @@ LEAGUE_FOLDERS = {
     "Ligue 1": "Ligue 1",
     "Serie A": "Serie A",
     "Primeira Liga": "Primeira Liga",
+    "Eredivisie": "Eredivisie",
 }
 
 # Squad roster overrides are no longer needed — Opta data includes team info directly.
@@ -5449,7 +5450,7 @@ def render_gk_analysis(data):
 
     st.subheader("🧤 Goalkeeper Analysis")
     st.caption(
-        "PSxG-based performance rankings for goalkeepers across Europe's top 6 leagues. "
+        "PSxG-based performance rankings for goalkeepers across Europe's top 7 leagues. "
         "PSxG is approximated from on-target shots faced, weighted by location "
         "(inside box × 0.34, big chances × 0.55, outside box × 0.12, penalties × 0.79)."
     )

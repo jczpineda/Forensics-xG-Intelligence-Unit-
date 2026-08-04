@@ -1,6 +1,6 @@
 # ⚽ Forensics xG: The Intelligence Unit
 
-Interactive football analytics and scouting tool for Europe's top 6 leagues, with
+Interactive football analytics and scouting tool for Europe's top 7 leagues, with
 **custom-built xG, post-shot xG and expected-assists models** computed from raw
 Opta event data — plus role-based player grading, six seasons of history, market
 values and more.
@@ -41,6 +41,7 @@ values and more.
 | Ligue 1 | France |
 | Serie A | Italy |
 | Primeira Liga | Portugal |
+| Eredivisie | Netherlands |
 
 Seasons **2020-21 → 2025-26** (financials, footedness and photos apply to the current season).
 
@@ -69,6 +70,7 @@ refresh:
 | `build_financials_csv.py` | `Player Financials/player_financials.csv` | market value & salary |
 | `build_photos_csv.py` | `player_photos.csv` | player cutout photos (`refresh "Name1;Name2"` to re-fetch) |
 | `build_bundesliga_historical.py` | `Bundesliga/jugadores_historical.csv` | rebuilt top-flight history from event JSONs |
+| `build_eredivisie.py` | `Eredivisie/jugadores_*.csv` | assemble the Dutch league CSVs from per-team Opta files |
 
 Both xG models are logistic fits over every shot (calibrated so Σ xG ≈ Σ goals); see each
 script's docstring for features and validation (`python build_player_xg.py validate`).
