@@ -68,6 +68,13 @@ _GK_PSXG_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gk_psxg
 # npxG and finishing (npG − xG) for outfield players.
 _PLAYER_XG_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_xg.csv")
 
+# ── Team xT CSVs (open-play expected threat, keyed by liga + temporada + equipo)
+# Built by build_team_xt.py from the same raw Opta event JSONs.  team_xt.csv is
+# one row per team-season; team_xt_grid.csv breaks that total down by the pitch
+# zone each action started from, which powers the Team Profile heatmap.
+_TEAM_XT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt.csv")
+_TEAM_XT_GRID_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt_grid.csv")
+
 
 def _csv_mtime(path):
     """Return CSV file modification time as int (for cache-busting)."""
@@ -221,6 +228,34 @@ def _load_player_xg_csv(_bust=0):
             "key_passes": float(r.get("key_passes", 0) or 0),
         }
     return out
+
+
+def _read_team_xt(path):
+    """Shared reader for the two team-xT CSVs; empty frame if not built yet."""
+    if not os.path.exists(path):
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path, encoding="utf-8-sig", low_memory=False)
+    except Exception:
+        return pd.DataFrame()
+    for col in ("liga", "temporada", "equipo"):
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+    return df
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_team_xt_csv(_bust=0):
+    """Open-play xT per team-season: liga, temporada, equipo, matches,
+    xt_total, xt_per_match, moves.  Built by build_team_xt.py."""
+    return _read_team_xt(_TEAM_XT_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_team_xt_grid_csv(_bust=0):
+    """Per-match xT by originating pitch zone (zx 0-11 own goal -> opponent
+    goal, zy 0-7 across).  Long form, one row per team-season-zone."""
+    return _read_team_xt(_TEAM_XT_GRID_CSV)
 
 
 META_COLS = {"nombre", "posicion", "posicion_detail", "league_display", "Player",
@@ -4811,6 +4846,167 @@ def _team_vs_league_chart(squad, league_players, metrics, team_sel, league_sel, 
     return fig
 
 
+# ── Expected Threat (xT) ─────────────────────────────────────────────────────
+
+# Grid dimensions, mirroring build_team_xt.py.
+_XT_NX, _XT_NY = 12, 8
+
+# A team can LOSE threat from a zone as well as gain it, so the zone map is a
+# diverging scale with zero pinned to a neutral midpoint.  ColorBrewer BrBG —
+# one of the few diverging pairs that stays separable under red-green CVD.
+_XT_DIVERGING = [
+    [0.00, "#8c510a"], [0.15, "#bf812d"], [0.30, "#dfc27d"], [0.45, "#f6e8c3"],
+    [0.50, "#f5f5f5"],
+    [0.55, "#c7eae5"], [0.70, "#80cdc1"], [0.85, "#35978f"], [1.00, "#01665e"],
+]
+
+_XT_HIGHLIGHT = "#2d6a4f"   # the selected team
+_XT_RECESSIVE = "#c9d6cf"   # every other team in the league
+
+
+def _xt_zone_heatmap(grid, team_sel, temporada):
+    """Heatmap of xT generated per match, by the zone each action started in."""
+    z = np.full((_XT_NY, _XT_NX), np.nan)
+    for _, r in grid.iterrows():
+        zx, zy = int(r["zx"]), int(r["zy"])
+        if 0 <= zx < _XT_NX and 0 <= zy < _XT_NY:
+            z[zy, zx] = float(r["xt"])
+    if np.all(np.isnan(z)):
+        return None
+
+    # Symmetric range so the neutral midpoint really sits at zero.
+    lim = float(np.nanmax(np.abs(z))) or 1.0
+
+    fig = go.Figure(go.Heatmap(
+        z=z, zmid=0, zmin=-lim, zmax=lim,
+        colorscale=_XT_DIVERGING,
+        xgap=2, ygap=2,                     # 2px surface gap between cells
+        colorbar=dict(title=dict(text="xT / match", side="right"), thickness=14),
+        hovertemplate="Threat created: %{z:+.4f} per match<extra></extra>",
+    ))
+    fig.update_layout(
+        title=f"{team_sel} — where the threat is created ({temporada})",
+        template="plotly_white", height=400,
+        xaxis=dict(title="Own goal  →  opponent goal",
+                   showticklabels=False, showgrid=False, zeroline=False),
+        yaxis=dict(title="Pitch width",
+                   showticklabels=False, showgrid=False, zeroline=False),
+        margin=dict(l=60, r=10, t=60, b=50),
+    )
+    return fig
+
+
+def _render_team_xt(squad, team_sel, league_sel):
+    """Open-play xT generated: where the team ranks in its league, and which
+    pitch zones its threat comes from.  Reads the CSVs built by
+    build_team_xt.py, and degrades to a notice if they aren't built yet."""
+    st.markdown("### ⚡ Expected Threat (xT) Generated")
+    st.caption(
+        "xT values the build-up rather than the shot: every successful open-play "
+        "pass and carry is scored by how much it raised the probability that the "
+        "possession ends in a goal. Fit in-house on a 12×8 grid from the raw Opta "
+        "event data, using a single surface across all leagues and seasons so the "
+        "numbers compare directly. Always per match — the Total / Per 90 toggle "
+        "does not apply here."
+    )
+
+    xt = _load_team_xt_csv(_csv_mtime(_TEAM_XT_CSV))
+    if xt.empty:
+        st.info(
+            "xT hasn't been built yet — run `python build_team_xt.py build` to "
+            "generate `team_xt.csv` from the Opta event JSONs."
+        )
+        return
+
+    liga = str(squad["liga"].iloc[0]) if "liga" in squad.columns else ""
+    temporada = str(squad["temporada"].iloc[0]) if "temporada" in squad.columns else ""
+    peers = xt[(xt["liga"] == liga) & (xt["temporada"] == temporada)].copy()
+    if peers.empty:
+        st.info(f"No xT data for {league_sel} in {temporada or 'this season'}.")
+        return
+
+    peers = peers.sort_values("xt_per_match", ascending=False).reset_index(drop=True)
+    peers["Rank"] = peers.index + 1
+    me = peers[peers["equipo"] == team_sel]
+    league_avg = float(peers["xt_per_match"].mean())
+
+    if me.empty:
+        st.info(f"No xT data for {team_sel} in {temporada}.")
+        return
+    my_xt = float(me["xt_per_match"].iloc[0])
+    my_rank = int(me["Rank"].iloc[0])
+
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.metric(f"{team_sel} — xT per match", f"{my_xt:.3f}",
+                  delta=f"{my_xt - league_avg:+.3f} vs league")
+    with k2:
+        st.metric(f"{league_sel} average", f"{league_avg:.3f}")
+    with k3:
+        st.metric("League rank", f"{_ordinal(my_rank)} of {len(peers)}")
+
+    # ── League ranking ───────────────────────────────────────────────────
+    order = peers.sort_values("xt_per_match")          # ascending: best on top
+    colors = [_XT_HIGHLIGHT if t == team_sel else _XT_RECESSIVE
+              for t in order["equipo"]]
+    fig = go.Figure(go.Bar(
+        x=order["xt_per_match"], y=order["equipo"], orientation="h",
+        marker=dict(color=colors, line=dict(width=0)),
+        text=[f"{v:.3f}" for v in order["xt_per_match"]],
+        textposition="outside", cliponaxis=False,
+        customdata=np.stack([order["Rank"], order["matches"]], axis=-1),
+        hovertemplate="<b>%{y}</b><br>xT per match: %{x:.3f}<br>"
+                      "Rank: %{customdata[0]}<br>Matches: %{customdata[1]}"
+                      "<extra></extra>",
+    ))
+    fig.add_vline(x=league_avg, line=dict(color="#e9c46a", width=2, dash="dash"),
+                  annotation_text="League avg", annotation_position="top")
+    fig.update_layout(
+        title=f"Average xT generated per match — {league_sel}, {temporada}",
+        template="plotly_white",
+        height=max(360, 26 * len(order) + 130),
+        xaxis_title="xT per match", yaxis_title=None,
+        margin=dict(l=10, r=60, t=60, b=40), showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(f"{team_sel} is highlighted in dark green; the dashed line is the league average.")
+
+    # ── Where that threat comes from ─────────────────────────────────────
+    grid_all = _load_team_xt_grid_csv(_csv_mtime(_TEAM_XT_GRID_CSV))
+    if not grid_all.empty:
+        grid = grid_all[(grid_all["liga"] == liga)
+                        & (grid_all["temporada"] == temporada)
+                        & (grid_all["equipo"] == team_sel)]
+        if not grid.empty:
+            hm = _xt_zone_heatmap(grid, team_sel, temporada)
+            if hm is not None:
+                st.plotly_chart(hm, use_container_width=True)
+                st.caption(
+                    "Each cell is the xT the team creates per match from actions "
+                    "**starting** in that zone. Teal means the team gains threat "
+                    "from there; brown means possession there tends to move the "
+                    "ball away from danger."
+                )
+
+    with st.expander("📋 Full league table & how xT is built"):
+        table = peers[["Rank", "equipo", "xt_per_match", "xt_total", "matches", "moves"]].rename(
+            columns={"equipo": "Team", "xt_per_match": "xT / match",
+                     "xt_total": "xT total", "matches": "Matches",
+                     "moves": "Open-play moves"})
+        st.dataframe(table, use_container_width=True, hide_index=True)
+        st.markdown(
+            "**Method.** Every action from a pitch zone is one of three things: a "
+            "shot, a successful move (pass or carry), or a loss of possession. "
+            "Value iteration solves for each zone's goal probability, "
+            "`V(z) = P(shot)·P(goal|shot) + P(move)·Σ T(z→z')·V(z')`. An action is "
+            "worth `V(end) − V(start)`, and a team's xT is the sum over its "
+            "successful open-play moves.\n\n"
+            "Set pieces (corners, free kicks, throw-ins, goal kicks), penalties and "
+            "direct free-kick shots are excluded throughout, so this is strictly "
+            "open-play xT. Built by `build_team_xt.py`."
+        )
+
+
 def render_team_profile(data):
     df_total = data["total"]
     st.subheader("🏟️ Team Profile")
@@ -4979,37 +5175,8 @@ def render_team_profile(data):
             else:
                 st.info(f"No {cat_name} metrics available for comparison.")
 
-    # ── Team Needs Analysis (Categorised) ─────────────────────────────────
-    st.markdown("### 🔎 Team Needs Analysis")
-    st.caption("Metrics where the team's per-player average falls below the league average, grouped by category.")
-    any_need = False
-    for cat_name, cat_metrics in TEAM_STAT_CATEGORIES.items():
-        sq = squad[squad["posicion"] == "Goalkeeper"] if cat_name == GK_CAT else squad
-        lp = league_players[league_players["posicion"] == "Goalkeeper"] if cat_name == GK_CAT else league_players
-        cat_below = []
-        if sq.empty:
-            continue
-        for m in cat_metrics:
-            if m not in sq.columns or m not in lp.columns:
-                continue
-            t_avg = sq[m].mean()
-            l_avg = lp[m].mean()
-            if l_avg > 0 and t_avg < l_avg:
-                pct_gap = round((l_avg - t_avg) / l_avg * 100, 1)
-                cat_below.append({
-                    "Metric": m,
-                    "Team Avg": round(t_avg, 2),
-                    "League Avg": round(l_avg, 2),
-                    "Gap": round(l_avg - t_avg, 2),
-                    "Gap %": f"{pct_gap}%",
-                })
-        if cat_below:
-            any_need = True
-            needs_df = pd.DataFrame(cat_below).sort_values("Gap", ascending=False)
-            with st.expander(f"{cat_name}  —  {len(cat_below)} areas below average", expanded=True):
-                st.dataframe(needs_df.reset_index(drop=True), use_container_width=True)
-    if not any_need:
-        st.success("This team is above the league average in all tracked metrics!")
+    # ── Expected Threat (xT) Generated ────────────────────────────────────
+    _render_team_xt(squad, team_sel, league_sel)
 
     # ── Player Scorecard & Grading ──────────────────────────────────────
     st.markdown("### 🃏 Player Scorecard & Grading")

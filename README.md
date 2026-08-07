@@ -13,6 +13,7 @@ values and more.
   - **xG** (pre-shot) and **npxG** for every shooter, with **Finishing (npG − xG)** to separate finishing skill from chance quality.
   - **xA** (expected assists) — the xG of the chances a player creates — plus **npxG + xA** for total goal involvement.
   - **PSxG** (post-shot xG) for goalkeepers, with **PSxG+/- (goals prevented)** and **Saveable Goals** (soft goals conceded) to expose error-proneness.
+  - **xT** (expected threat) per team — values the *build-up* rather than the shot: every successful open-play pass and carry scored by how much it raised the chance the possession ends in a goal. Solved by value iteration on a 12×8 grid, one surface across all leagues and seasons so teams compare directly.
 - **Player grading** — role-aware grades (S+ → F) across position-specific categories, shown as pizza charts and attribute breakdowns. PSxG+/- is the core of the goalkeeper grade; xG/xA drive attacking grades, with regression-to-mean shrinkage so small samples don't swing results.
 - **Automatic role classification** — each player is typed into a role (e.g. Shot-Stopper, Ball-Playing GK, Prolific Striker, Advanced Playmaker) and graded against the right peers and KPIs.
 - **Six seasons** (2020-21 → 2025-26) with cross-season comparison and a trajectory-based **Potential Grading** that tracks each player across seasons by stable Opta id.
@@ -28,7 +29,7 @@ values and more.
 | 🧤 **GK Analysis** | Goalkeeper shot-stopping rankings powered by the PSxG model |
 | 🌟 **Potential Grading** | Trajectory-driven potential, blending form momentum with the age curve |
 | ⚔️ **Player Comparison** | Find Similar Players · head-to-head Compare · Cross-Season Compare |
-| 🏟️ **Team Profile / Comparison** | Team-level aggregates and matchups |
+| 🏟️ **Team Profile / Comparison** | Team-level aggregates, matchups, and **xT generated** — league ranking plus a pitch map of where each team creates threat |
 | 🔍 **Data Explorer** | Browse, filter, search and download the raw data |
 
 ## Leagues & seasons
@@ -66,6 +67,7 @@ refresh:
 |---------|----------|---------|
 | `build_player_xg.py` | `player_xg.csv` | pre-shot xG, npxG, finishing, **xA** per player-season |
 | `build_gk_psxg.py` | `gk_psxg.csv` | post-shot xG, PSxG+/-, saveable goals per keeper-season |
+| `build_team_xt.py` | `team_xt.csv`, `team_xt_grid.csv`, `xt_surface.csv` | open-play **xT** per team-season, its per-zone breakdown, and the fitted surface |
 | `build_footedness.py` | `player_footedness.csv` | preferred foot (Transfermarkt) |
 | `build_financials_csv.py` | `Player Financials/player_financials.csv` | market value & salary |
 | `build_photos_csv.py` | `player_photos.csv` | player cutout photos (`refresh "Name1;Name2"` to re-fetch) |
