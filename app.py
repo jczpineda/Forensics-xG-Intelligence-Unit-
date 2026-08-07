@@ -4851,21 +4851,110 @@ def _team_vs_league_chart(squad, league_players, metrics, team_sel, league_sel, 
 # Grid dimensions, mirroring build_team_xt.py.
 _XT_NX, _XT_NY = 12, 8
 
-# A team can LOSE threat from a zone as well as gain it, so the zone map is a
-# diverging scale with zero pinned to a neutral midpoint.  ColorBrewer BrBG —
-# one of the few diverging pairs that stays separable under red-green CVD.
-_XT_DIVERGING = [
-    [0.00, "#8c510a"], [0.15, "#bf812d"], [0.30, "#dfc27d"], [0.45, "#f6e8c3"],
-    [0.50, "#f5f5f5"],
-    [0.55, "#c7eae5"], [0.70, "#80cdc1"], [0.85, "#35978f"], [1.00, "#01665e"],
-]
-
 _XT_HIGHLIGHT = "#2d6a4f"   # the selected team
 _XT_RECESSIVE = "#c9d6cf"   # every other team in the league
 
+# ── Pitch geometry ───────────────────────────────────────────────────────────
+# Opta events are 0-100 x 0-100; a real pitch is 105m x 68m, so the two axes
+# carry different metres-per-unit.  Everything below converts through _mx/_my,
+# which is also why the centre circle is drawn as an ellipse — a true circle on
+# the grass is an ellipse in these coordinates.
+_PITCH_M_X, _PITCH_M_Y = 105.0, 68.0
+_PITCH_FILL = "#12302a"                    # dark tactical turf
+_PITCH_LINE = "rgba(255,255,255,0.55)"
 
-def _xt_zone_heatmap(grid, team_sel, temporada):
-    """Heatmap of xT generated per match, by the zone each action started in."""
+
+def _mx(m):
+    """Metres along the pitch length → Opta x units."""
+    return m / _PITCH_M_X * 100.0
+
+
+def _my(m):
+    """Metres across the pitch width → Opta y units."""
+    return m / _PITCH_M_Y * 100.0
+
+
+# Diverging red ↔ blue, with ZERO pinned to the turf colour so neutral zones
+# sink into the pitch and only real gains/losses glow.  A near-white midpoint
+# (the usual choice on a light background) would make every empty zone the
+# brightest thing on a dark pitch — exactly backwards.
+_XT_DIVERGING = [
+    [0.00, "#4aa3df"], [0.18, "#2f7bb0"], [0.36, "#1d4f5e"],
+    [0.50, _PITCH_FILL],
+    [0.64, "#7a2b20"], [0.82, "#cf3b22"], [1.00, "#ff7a52"],
+]
+
+
+def _arc_path(cx, cy, rx, ry, t0, t1, n=48):
+    """SVG path string for an elliptical arc between two angles (degrees)."""
+    t = np.radians(np.linspace(t0, t1, n + 1))
+    pts = zip(cx + rx * np.cos(t), cy + ry * np.sin(t))
+    return "M " + " L ".join(f"{x:.3f},{y:.3f}" for x, y in pts)
+
+
+def _pitch_shapes():
+    """Pitch markings in Opta 0-100 coordinates, attacking left → right."""
+    line = dict(color=_PITCH_LINE, width=1.6)
+    box_x, six_x = _mx(16.5), _mx(5.5)
+    box_y0, box_y1 = 50 - _my(40.32 / 2), 50 + _my(40.32 / 2)
+    six_y0, six_y1 = 50 - _my(18.32 / 2), 50 + _my(18.32 / 2)
+    goal_y0, goal_y1 = 50 - _my(7.32 / 2), 50 + _my(7.32 / 2)
+    spot_x, r_x, r_y = _mx(11), _mx(9.15), _my(9.15)
+
+    shapes = [
+        # touchlines / goal lines
+        dict(type="rect", x0=0, y0=0, x1=100, y1=100, line=line, layer="above"),
+        # halfway line
+        dict(type="line", x0=50, y0=0, x1=50, y1=100, line=line, layer="above"),
+        # centre circle + spot
+        dict(type="circle", x0=50 - r_x, y0=50 - r_y, x1=50 + r_x, y1=50 + r_y,
+             line=line, layer="above"),
+        dict(type="circle", x0=50 - 0.4, y0=50 - 0.6, x1=50 + 0.4, y1=50 + 0.6,
+             fillcolor=_PITCH_LINE, line=dict(width=0), layer="above"),
+    ]
+
+    for side in (0, 1):
+        sx = 1 if side == 0 else -1              # mirror for the right-hand end
+        base = 0 if side == 0 else 100
+        # penalty area, six-yard box, goal
+        shapes += [
+            dict(type="rect", x0=base, y0=box_y0, x1=base + sx * box_x, y1=box_y1,
+                 line=line, layer="above"),
+            dict(type="rect", x0=base, y0=six_y0, x1=base + sx * six_x, y1=six_y1,
+                 line=line, layer="above"),
+            dict(type="rect", x0=base, y0=goal_y0, x1=base - sx * _mx(2.0), y1=goal_y1,
+                 line=dict(color=_PITCH_LINE, width=2.2), layer="above"),
+            # penalty spot
+            dict(type="circle",
+                 x0=base + sx * spot_x - 0.4, y0=50 - 0.6,
+                 x1=base + sx * spot_x + 0.4, y1=50 + 0.6,
+                 fillcolor=_PITCH_LINE, line=dict(width=0), layer="above"),
+        ]
+        # penalty arc — only the part standing outside the box
+        cx = base + sx * spot_x
+        cut = np.degrees(np.arccos(min(1.0, (box_x - spot_x) / r_x)))
+        t0, t1 = (-cut, cut) if side == 0 else (180 - cut, 180 + cut)
+        shapes.append(dict(type="path", path=_arc_path(cx, 50, r_x, r_y, t0, t1),
+                           line=line, layer="above"))
+        # corner arcs
+        for cy in (0, 100):
+            q0 = 0 if cy == 0 else -90
+            shapes.append(dict(
+                type="path",
+                path=_arc_path(base, cy, sx * _mx(1.0), _my(1.0), q0, q0 + 90),
+                line=dict(color=_PITCH_LINE, width=1.2), layer="above"))
+    return shapes
+
+
+def _xt_zone_heatmap(grid, team_sel, temporada, lim=None):
+    """Heatmap of xT generated per match, by the zone each action started in,
+    drawn on a pitch so the zones read positionally.
+
+    *lim* fixes the colour range across the whole league-season.  Scaling each
+    team to its own maximum instead would make an equally-red cell mean a
+    different number on every team's map — useless for the comparison this
+    section exists to support.
+    """
     z = np.full((_XT_NY, _XT_NX), np.nan)
     for _, r in grid.iterrows():
         zx, zy = int(r["zx"]), int(r["zy"])
@@ -4875,23 +4964,31 @@ def _xt_zone_heatmap(grid, team_sel, temporada):
         return None
 
     # Symmetric range so the neutral midpoint really sits at zero.
-    lim = float(np.nanmax(np.abs(z))) or 1.0
+    if not lim or not np.isfinite(lim):
+        lim = float(np.nanmax(np.abs(z)))
+    lim = float(lim) or 1.0
+    dx, dy = 100.0 / _XT_NX, 100.0 / _XT_NY
 
     fig = go.Figure(go.Heatmap(
         z=z, zmid=0, zmin=-lim, zmax=lim,
-        colorscale=_XT_DIVERGING,
-        xgap=2, ygap=2,                     # 2px surface gap between cells
-        colorbar=dict(title=dict(text="xT / match", side="right"), thickness=14),
+        x0=dx / 2, dx=dx, y0=dy / 2, dy=dy,
+        colorscale=_XT_DIVERGING, xgap=1, ygap=1,
+        colorbar=dict(title=dict(text="xT / match", side="right"), thickness=14,
+                      outlinewidth=0),
         hovertemplate="Threat created: %{z:+.4f} per match<extra></extra>",
     ))
     fig.update_layout(
         title=f"{team_sel} — where the threat is created ({temporada})",
-        template="plotly_white", height=400,
-        xaxis=dict(title="Own goal  →  opponent goal",
+        template="plotly_white",
+        width=900, height=600,
+        shapes=_pitch_shapes(),
+        plot_bgcolor=_PITCH_FILL, paper_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(title="Own goal  →  opponent goal", range=[-3, 103],
                    showticklabels=False, showgrid=False, zeroline=False),
-        yaxis=dict(title="Pitch width",
-                   showticklabels=False, showgrid=False, zeroline=False),
-        margin=dict(l=60, r=10, t=60, b=50),
+        yaxis=dict(title="Pitch width", range=[-2, 102],
+                   showticklabels=False, showgrid=False, zeroline=False,
+                   scaleanchor="x", scaleratio=_PITCH_M_Y / _PITCH_M_X),
+        margin=dict(l=50, r=20, t=70, b=55),
     )
     return fig
 
@@ -4974,18 +5071,23 @@ def _render_team_xt(squad, team_sel, league_sel):
     # ── Where that threat comes from ─────────────────────────────────────
     grid_all = _load_team_xt_grid_csv(_csv_mtime(_TEAM_XT_GRID_CSV))
     if not grid_all.empty:
-        grid = grid_all[(grid_all["liga"] == liga)
-                        & (grid_all["temporada"] == temporada)
-                        & (grid_all["equipo"] == team_sel)]
+        league_grid = grid_all[(grid_all["liga"] == liga)
+                               & (grid_all["temporada"] == temporada)]
+        grid = league_grid[league_grid["equipo"] == team_sel]
         if not grid.empty:
-            hm = _xt_zone_heatmap(grid, team_sel, temporada)
+            # One colour range for the whole league-season, so switching teams
+            # compares like with like.
+            lim = float(league_grid["xt"].abs().max())
+            hm = _xt_zone_heatmap(grid, team_sel, temporada, lim=lim)
             if hm is not None:
-                st.plotly_chart(hm, use_container_width=True)
+                st.plotly_chart(hm, use_container_width=False)
                 st.caption(
-                    "Each cell is the xT the team creates per match from actions "
-                    "**starting** in that zone. Teal means the team gains threat "
-                    "from there; brown means possession there tends to move the "
-                    "ball away from danger."
+                    "The team attacks left → right. Each cell is the xT it creates "
+                    "per match from actions **starting** in that zone: red means it "
+                    "gains threat from there, blue means possession there tends to "
+                    "move the ball away from danger, and zones level with the turf "
+                    "are neutral. The colour scale is fixed across every team in "
+                    f"{league_sel} this season, so these maps compare directly."
                 )
 
     with st.expander("📋 Full league table & how xT is built"):
