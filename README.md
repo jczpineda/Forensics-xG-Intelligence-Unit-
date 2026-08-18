@@ -73,6 +73,9 @@ refresh:
 | `build_photos_csv.py` | `player_photos.csv` | player cutout photos (`refresh "Name1;Name2"` to re-fetch) |
 | `build_bundesliga_historical.py` | `Bundesliga/jugadores_historical.csv` | rebuilt top-flight history from event JSONs |
 | `build_eredivisie.py` | `Eredivisie/jugadores_*.csv` | assemble the Dutch league CSVs from per-team Opta files |
+| `build_team_xt.py` | `team_xt*.csv`, `xt_surface.csv` | fit the xT surface + team xT *generated* by zone |
+| `build_spatial.py` | `player_xt.csv`, `team_xt_prevented*.csv` | player xT (gen & prevented) + team xT *prevented*, reusing the surface |
+| `build_maps.py` | `team_/player_heatmap.csv`, `team_/player_sonar.csv` | current-season touch heat maps + pass sonars |
 
 Both xG models are logistic fits over every shot (calibrated so Σ xG ≈ Σ goals); see each
 script's docstring for features and validation (`python build_player_xg.py validate`).

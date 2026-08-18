@@ -75,6 +75,18 @@ _PLAYER_XG_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "playe
 _TEAM_XT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt.csv")
 _TEAM_XT_GRID_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt_grid.csv")
 
+# ── xT the other way (build_spatial.py): threat PREVENTED by defensive actions,
+# and per-player xT generated + prevented.  Same builder→CSV→app pattern.
+_TEAM_XTP_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt_prevented.csv")
+_TEAM_XTP_GRID_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt_prevented_grid.csv")
+_PLAYER_XT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_xt.csv")
+
+# ── Heat maps & pass sonars (build_maps.py, current season only) ─────────────
+_TEAM_HEATMAP_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_heatmap.csv")
+_PLAYER_HEATMAP_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_heatmap.csv")
+_TEAM_SONAR_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_sonar.csv")
+_PLAYER_SONAR_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_sonar.csv")
+
 
 def _csv_mtime(path):
     """Return CSV file modification time as int (for cache-busting)."""
@@ -256,6 +268,76 @@ def _load_team_xt_grid_csv(_bust=0):
     """Per-match xT by originating pitch zone (zx 0-11 own goal -> opponent
     goal, zy 0-7 across).  Long form, one row per team-season-zone."""
     return _read_team_xt(_TEAM_XT_GRID_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_team_xtp_csv(_bust=0):
+    """xT prevented per team-season: liga, temporada, equipo, matches,
+    xtp_total, xtp_per_match.  Built by build_spatial.py."""
+    return _read_team_xt(_TEAM_XTP_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_team_xtp_grid_csv(_bust=0):
+    """xT prevented per match by the zone the defensive action happened in
+    (team's own orientation, so its defensive third is on the left)."""
+    return _read_team_xt(_TEAM_XTP_GRID_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_player_xt_csv(_bust=0):
+    """Per-player xT, keyed by (Opta id, temporada):
+    {(id, temporada): {"gen", "prevented", "moves", "def"}}."""
+    if not os.path.exists(_PLAYER_XT_CSV):
+        return {}
+    df = pd.read_csv(_PLAYER_XT_CSV, encoding="utf-8-sig", low_memory=False)
+    out = {}
+    for _, r in df.iterrows():
+        pid = str(r.get("id", "")).strip()
+        season = str(r.get("temporada", "")).strip()
+        if not pid or not season:
+            continue
+        out[(pid, season)] = {
+            "gen": float(r.get("xt_gen", 0) or 0),
+            "prevented": float(r.get("xt_prevented", 0) or 0),
+            "moves": float(r.get("moves", 0) or 0),
+            "def": float(r.get("def_actions", 0) or 0),
+        }
+    return out
+
+
+def _read_id_csv(path):
+    """Reader for the id-keyed heat/sonar CSVs; empty frame if not built."""
+    if not os.path.exists(path):
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(path, encoding="utf-8-sig", low_memory=False)
+    except Exception:
+        return pd.DataFrame()
+    for col in ("id", "temporada"):
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
+    return df
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_team_heatmap_csv(_bust=0):
+    return _read_team_xt(_TEAM_HEATMAP_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_player_heatmap_csv(_bust=0):
+    return _read_id_csv(_PLAYER_HEATMAP_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_team_sonar_csv(_bust=0):
+    return _read_team_xt(_TEAM_SONAR_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_player_sonar_csv(_bust=0):
+    return _read_id_csv(_PLAYER_SONAR_CSV)
 
 
 META_COLS = {"nombre", "posicion", "posicion_detail", "league_display", "Player",
@@ -657,6 +739,27 @@ def _compute_xg_derived(df):
     return out
 
 
+def _compute_xt_derived(df):
+    """Per-player expected threat (build_spatial.py), merged by (id, temporada):
+    xT Generated (build-up threat from open-play moves) and xT Prevented (threat
+    denied by ball-winning defensive actions).  Season totals — the per-90 loop
+    turns them into xT/90.
+    """
+    out = {}
+    xt_data = _load_player_xt_csv(_bust=_csv_mtime(_PLAYER_XT_CSV))
+    if not xt_data or "id" not in df.columns or "temporada" not in df.columns:
+        return out
+    keys = list(zip(df["id"].astype(str), df["temporada"].astype(str)))
+    m_gen = pd.Series([xt_data.get(k, {}).get("gen") for k in keys],
+                      index=df.index, dtype=float)
+    m_prev = pd.Series([xt_data.get(k, {}).get("prevented") for k in keys],
+                       index=df.index, dtype=float)
+    if m_gen.notna().any() or m_prev.notna().any():
+        out["xT Generated"] = m_gen.round(3)
+        out["xT Prevented"] = m_prev.round(3)
+    return out
+
+
 def _data_fingerprint():
     """Max mtime across all player CSVs — used as a cache-buster so load_data
     (and trajectories) automatically re-read when the data files change on disk,
@@ -670,6 +773,7 @@ def _data_fingerprint():
                 pass
     mt = max(mt, _csv_mtime(_GK_PSXG_CSV))   # refresh when measured PSxG changes
     mt = max(mt, _csv_mtime(_PLAYER_XG_CSV))  # …and when player xG changes
+    mt = max(mt, _csv_mtime(_PLAYER_XT_CSV))  # …and when player xT changes
     mt = max(mt, _csv_mtime(_FINANCIALS_CSV))  # …and when values/ages change
     return mt
 
@@ -772,6 +876,9 @@ def _load_data_cached(season, _bust):
 
     # ── Player pre-shot xG, npxG & finishing (npG − xG) ───────────────────
     _derived.update(_compute_xg_derived(combined))
+
+    # ── Player expected threat (generated & prevented) ────────────────────
+    _derived.update(_compute_xt_derived(combined))
 
     # GK Launch %
     if "Successful Launches" in combined.columns and "Unsuccessful Launches" in combined.columns:
@@ -1032,6 +1139,9 @@ def _load_data_cached(season, _bust):
         # Measured xG/finishing — used verbatim (not possession-scaled)
         for _xg_col, _xg_val in _compute_xg_derived(padj).items():
             padj[_xg_col] = _xg_val
+        # Player xT (generated & prevented) — measured, used verbatim
+        for _xt_col, _xt_val in _compute_xt_derived(padj).items():
+            padj[_xt_col] = _xt_val
         if "Successful Launches" in padj.columns and "Unsuccessful Launches" in padj.columns:
             tl = padj["Successful Launches"].fillna(0) + padj["Unsuccessful Launches"].fillna(0)
             padj["Launch %"] = (padj["Successful Launches"].fillna(0) / tl.replace(0, np.nan) * 100).round(1)
@@ -4588,6 +4698,70 @@ def render_profile(data, is_current=True):
             st.metric("xG / Shot", xgs_str, delta=_pctd(_xgs_val, "xG/Shot"),
                       help="Average chance quality per shot taken.")
 
+    # ── Expected Threat (xT) statline ────────────────────────────────────
+    _xtg_val = row_data.get("xT Generated")
+    _xtp_val = row_data.get("xT Prevented")
+    if ((_xtg_val is not None and not pd.isna(_xtg_val))
+            or (_xtp_val is not None and not pd.isna(_xtp_val))):
+        st.markdown("---")
+        st.markdown(f"### 🧠 Expected Threat (xT){mode_label}")
+        st.caption(
+            "**xT Generated** — threat this player adds through open-play passes and "
+            "carries (build-up value, not shots). **xT Prevented** — threat denied by "
+            "ball-winning defensive actions, each valued by how dangerous the spot was. "
+            "Percentiles are vs same-position peers.")
+        _xt_peers = peers[peers["posicion"] == position]
+
+        def _xt_delta(val, col):
+            if val is None or pd.isna(val) or col not in _xt_peers.columns:
+                return None
+            pv = _xt_peers[col].fillna(0)
+            return f"{_ordinal(round((pv < val).sum() / max(len(pv), 1) * 100, 1))} %ile"
+
+        _tc1, _tc2 = st.columns(2)
+        with _tc1:
+            _s = f"{_xtg_val:.2f}" if _xtg_val is not None and not pd.isna(_xtg_val) else "—"
+            st.metric("⚡ xT Generated", _s, delta=_xt_delta(_xtg_val, "xT Generated"),
+                      help="Open-play threat created through passing and carrying "
+                           "(net V(end)−V(start) over the player's moves).")
+        with _tc2:
+            _s = f"{_xtp_val:.2f}" if _xtp_val is not None and not pd.isna(_xtp_val) else "—"
+            st.metric("🛡️ xT Prevented", _s, delta=_xt_delta(_xtp_val, "xT Prevented"),
+                      help="Threat denied by ball-winning defensive actions, valued by "
+                           "the danger of the spot.")
+        st.caption(
+            "xT Generated is a *net* build-up value; xT Prevented is *absolute* threat "
+            "denied — different scales, so judge each by its percentile, not against "
+            "each other. Shown "
+            + ("per 90." if "Per 90" in (mode_label or "") else "as a season total.")
+        )
+
+    # ── Heat map & pass sonar (current season only) ──────────────────────
+    _pid = str(row.get("id", "")) if "id" in row.index else ""
+    if _pid:
+        _heat = _load_player_heatmap_csv(_csv_mtime(_PLAYER_HEATMAP_CSV))
+        _sonar = _load_player_sonar_csv(_csv_mtime(_PLAYER_SONAR_CSV))
+        _hg = _heat[_heat["id"] == _pid] if not _heat.empty else pd.DataFrame()
+        _sg = _sonar[_sonar["id"] == _pid] if not _sonar.empty else pd.DataFrame()
+        if not _hg.empty or not _sg.empty:
+            st.markdown("---")
+            st.markdown("### 🔥 Activity Heat Map & Pass Sonar (2025-26)")
+            if not is_current:
+                st.caption("Heat maps and pass sonars are built for the current season "
+                           "only — showing 2025-26 for this player.")
+            _hcol, _scol = st.columns([3, 2])
+            with _hcol:
+                _f = _touch_heatmap(_hg, f"{player_sel} — where he plays") if not _hg.empty else None
+                if _f is not None:
+                    st.plotly_chart(_f, use_container_width=True)
+                    st.caption("Density of his on-ball actions, attacking left → right.")
+            with _scol:
+                _f = _pass_sonar(_sg, f"{player_sel} — pass sonar") if not _sg.empty else None
+                if _f is not None:
+                    st.plotly_chart(_f, use_container_width=True)
+                    st.caption("Passing shape: wedge = direction (forward = up), length = "
+                               "avg distance, colour = completion %.")
+
     # ── FBref Scouting Report ────────────────────────────────────────────
     st.markdown("---")
     st.markdown(f"### 📋 Scouting Report{mode_label}")
@@ -4884,6 +5058,19 @@ _XT_DIVERGING = [
     [0.64, "#7a2b20"], [0.82, "#cf3b22"], [1.00, "#ff7a52"],
 ]
 
+# xT prevented is all-positive (threat denied), so a sequential scale from the
+# turf up to a bright defensive green — zero sinks into the pitch, hotspots glow.
+_XTP_SEQUENTIAL = [
+    [0.00, _PITCH_FILL], [0.22, "#1d4f3a"], [0.5, "#2d8a5f"],
+    [0.78, "#57c98a"], [1.00, "#b6f2cf"],
+]
+
+# Classic "heat" ramp for touch density — turf → green → amber → red.
+_HEAT_SEQUENTIAL = [
+    [0.00, _PITCH_FILL], [0.20, "#2e5d33"], [0.45, "#b9a02a"],
+    [0.70, "#e8801f"], [1.00, "#ff3b1e"],
+]
+
 
 def _arc_path(cx, cy, rx, ry, t0, t1, n=48):
     """SVG path string for an elliptical arc between two angles (degrees)."""
@@ -4991,6 +5178,216 @@ def _xt_zone_heatmap(grid, team_sel, temporada, lim=None):
         margin=dict(l=50, r=20, t=70, b=55),
     )
     return fig
+
+
+def _xt_prevented_heatmap(grid, team_sel, temporada, lim=None):
+    """Heatmap of xT PREVENTED per match by the zone the defensive action
+    happened in.  Drawn in the team's own attacking orientation, so its
+    defensive third (where most threat is snuffed out) sits on the left.
+    All-positive → a sequential (turf → green) scale, range fixed by *lim*."""
+    z = np.full((_XT_NY, _XT_NX), np.nan)
+    for _, r in grid.iterrows():
+        zx, zy = int(r["zx"]), int(r["zy"])
+        if 0 <= zx < _XT_NX and 0 <= zy < _XT_NY:
+            z[zy, zx] = float(r["xtp"])
+    if np.all(np.isnan(z)):
+        return None
+    if not lim or not np.isfinite(lim):
+        lim = float(np.nanmax(z))
+    lim = float(lim) or 1.0
+    dx, dy = 100.0 / _XT_NX, 100.0 / _XT_NY
+    fig = go.Figure(go.Heatmap(
+        z=z, zmin=0, zmax=lim,
+        x0=dx / 2, dx=dx, y0=dy / 2, dy=dy,
+        colorscale=_XTP_SEQUENTIAL, xgap=1, ygap=1,
+        colorbar=dict(title=dict(text="xT prevented / match", side="right"),
+                      thickness=14, outlinewidth=0),
+        hovertemplate="Threat prevented: %{z:.4f} per match<extra></extra>",
+    ))
+    fig.update_layout(
+        title=f"{team_sel} — where the threat is prevented ({temporada})",
+        template="plotly_white", width=900, height=600, shapes=_pitch_shapes(),
+        plot_bgcolor=_PITCH_FILL, paper_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(title="Own goal  →  opponent goal", range=[-3, 103],
+                   showticklabels=False, showgrid=False, zeroline=False),
+        yaxis=dict(title="Pitch width", range=[-2, 102],
+                   showticklabels=False, showgrid=False, zeroline=False,
+                   scaleanchor="x", scaleratio=_PITCH_M_Y / _PITCH_M_X),
+        margin=dict(l=50, r=20, t=70, b=55),
+    )
+    return fig
+
+
+def _touch_heatmap(grid, title, count_col="touches"):
+    """Touch-density heat map on the pitch (attacking left → right).  Each cell
+    is normalised to the map's own peak, then smoothed, so the shape reads as a
+    classic heat map regardless of the absolute counts."""
+    z = np.zeros((_XT_NY, _XT_NX))
+    seen = False
+    for _, r in grid.iterrows():
+        zx, zy = int(r["zx"]), int(r["zy"])
+        if 0 <= zx < _XT_NX and 0 <= zy < _XT_NY:
+            z[zy, zx] = float(r[count_col]); seen = True
+    if not seen or z.max() <= 0:
+        return None
+    dx, dy = 100.0 / _XT_NX, 100.0 / _XT_NY
+    fig = go.Figure(go.Heatmap(
+        z=z, zmin=0, zmax=float(z.max()),
+        x0=dx / 2, dx=dx, y0=dy / 2, dy=dy,
+        colorscale=_HEAT_SEQUENTIAL, zsmooth="best", showscale=False,
+        hovertemplate="Activity here: %{z:.2f}<extra></extra>",
+    ))
+    fig.update_layout(
+        title=title, template="plotly_white", width=760, height=500,
+        shapes=_pitch_shapes(), plot_bgcolor=_PITCH_FILL, paper_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(title="Own goal  →  opponent goal", range=[-3, 103],
+                   showticklabels=False, showgrid=False, zeroline=False),
+        yaxis=dict(title="Pitch width", range=[-2, 102],
+                   showticklabels=False, showgrid=False, zeroline=False,
+                   scaleanchor="x", scaleratio=_PITCH_M_Y / _PITCH_M_X),
+        margin=dict(l=40, r=20, t=60, b=45),
+    )
+    return fig
+
+
+_SONAR_N = 16   # compass sectors, mirroring build_maps.py
+
+
+def _pass_sonar(sonar, title):
+    """Pass sonar: a polar chart of passing shape.  Each wedge is a 22.5°
+    direction; its length is the average pass distance that way, its colour the
+    completion %, and hover shows the volume.  Forward (up the pitch) is up."""
+    if sonar is None or sonar.empty:
+        return None
+    by_sec = {int(r["sector"]): r for _, r in sonar.iterrows()}
+    r_vals, theta, comp, cnt = [], [], [], []
+    step = 360.0 / _SONAR_N
+    for s in range(_SONAR_N):
+        row = by_sec.get(s)
+        theta.append(s * step + step / 2.0)      # wedge centre, math angle (0=forward)
+        if row is not None:
+            r_vals.append(float(row["avg_dist"]))
+            comp.append(float(row["completion"]))
+            cnt.append(int(row["passes"]))
+        else:
+            r_vals.append(0.0); comp.append(0.0); cnt.append(0)
+    fig = go.Figure(go.Barpolar(
+        r=r_vals, theta=theta, width=[step * 0.92] * _SONAR_N,
+        marker=dict(color=comp, colorscale="RdYlGn", cmin=50, cmax=95,
+                    colorbar=dict(title=dict(text="Completion %", side="right"),
+                                  thickness=14, outlinewidth=0),
+                    line=dict(color="rgba(255,255,255,0.25)", width=1)),
+        customdata=np.stack([cnt, comp], axis=-1),
+        hovertemplate="Avg length: %{r:.1f} m<br>Passes: %{customdata[0]}<br>"
+                      "Completion: %{customdata[1]:.0f}%<extra></extra>",
+    ))
+    fig.update_layout(
+        title=title, template="plotly_white", height=460,
+        paper_bgcolor="rgba(0,0,0,0)",
+        polar=dict(
+            bgcolor=_PITCH_FILL,
+            radialaxis=dict(showticklabels=True, ticksuffix=" m", angle=90,
+                            gridcolor="rgba(255,255,255,0.15)", tickfont=dict(size=9)),
+            angularaxis=dict(rotation=90, direction="counterclockwise",
+                             showticklabels=False,
+                             gridcolor="rgba(255,255,255,0.15)"),
+        ),
+        margin=dict(l=30, r=30, t=60, b=30),
+    )
+    return fig
+
+
+def _render_team_xt_prevented(squad, team_sel, league_sel):
+    """Open-play xT prevented: where a team's ball-winning defensive actions
+    deny the most threat.  Reads the CSVs built by build_spatial.py."""
+    st.markdown("### 🛡️ Expected Threat (xT) Prevented")
+    st.caption(
+        "The defensive mirror of xT: every ball-winning action (tackle won, "
+        "interception, recovery, blocked pass, clearance) is valued by the "
+        "threat the opponent held at that spot — snuffing out an attack near "
+        "your own box prevents far more than winning the ball high up. Per "
+        "match, on the same fitted surface; higher = more threat denied."
+    )
+    xtp = _load_team_xtp_csv(_csv_mtime(_TEAM_XTP_CSV))
+    if xtp.empty:
+        st.info("xT prevented hasn't been built yet — run `python build_spatial.py build`.")
+        return
+    liga = str(squad["liga"].iloc[0]) if "liga" in squad.columns else ""
+    temporada = str(squad["temporada"].iloc[0]) if "temporada" in squad.columns else ""
+    peers = xtp[(xtp["liga"] == liga) & (xtp["temporada"] == temporada)].copy()
+    if peers.empty:
+        st.info(f"No xT-prevented data for {league_sel} in {temporada or 'this season'}.")
+        return
+    peers = peers.sort_values("xtp_per_match", ascending=False).reset_index(drop=True)
+    peers["Rank"] = peers.index + 1
+    me = peers[peers["equipo"] == team_sel]
+    league_avg = float(peers["xtp_per_match"].mean())
+    if me.empty:
+        st.info(f"No xT-prevented data for {team_sel} in {temporada}.")
+        return
+    my_xtp = float(me["xtp_per_match"].iloc[0])
+    my_rank = int(me["Rank"].iloc[0])
+
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.metric(f"{team_sel} — xT prevented / match", f"{my_xtp:.3f}",
+                  delta=f"{my_xtp - league_avg:+.3f} vs league")
+    with k2:
+        st.metric(f"{league_sel} average", f"{league_avg:.3f}")
+    with k3:
+        st.metric("League rank", f"{_ordinal(my_rank)} of {len(peers)}")
+    st.caption("Higher xT prevented usually means a team that *defends more* — "
+               "it reflects defensive workload/threat faced, so read the map for "
+               "*where* they defend rather than as a pure quality ranking.")
+
+    grid_all = _load_team_xtp_grid_csv(_csv_mtime(_TEAM_XTP_GRID_CSV))
+    if not grid_all.empty:
+        league_grid = grid_all[(grid_all["liga"] == liga) & (grid_all["temporada"] == temporada)]
+        grid = league_grid[league_grid["equipo"] == team_sel]
+        if not grid.empty:
+            lim = float(league_grid["xtp"].max())
+            hm = _xt_prevented_heatmap(grid, team_sel, temporada, lim=lim)
+            if hm is not None:
+                st.plotly_chart(hm, use_container_width=False)
+                st.caption(
+                    "The team attacks left → right, so its **own goal is on the "
+                    "left** — that's where most threat is prevented. Each cell is "
+                    "the xT it denies per match from ball-winning actions in that "
+                    f"zone; the colour scale is fixed across {league_sel} this "
+                    "season so the maps compare directly."
+                )
+
+
+def _render_team_maps(squad, team_sel, league_sel):
+    """Touch heat map + pass sonar for the team (current season only)."""
+    st.markdown("### 🔥 Activity Heat Map & Pass Sonar")
+    temporada = str(squad["temporada"].iloc[0]) if "temporada" in squad.columns else ""
+    liga = str(squad["liga"].iloc[0]) if "liga" in squad.columns else ""
+    if temporada != CURRENT_SEASON:
+        st.info("Heat maps and pass sonars are built for the current season only.")
+        return
+    heat = _load_team_heatmap_csv(_csv_mtime(_TEAM_HEATMAP_CSV))
+    sonar = _load_team_sonar_csv(_csv_mtime(_TEAM_SONAR_CSV))
+    if heat.empty and sonar.empty:
+        st.info("Not built yet — run `python build_maps.py`.")
+        return
+    hc, sc = st.columns([3, 2])
+    with hc:
+        g = heat[(heat["liga"] == liga) & (heat["temporada"] == temporada)
+                 & (heat["equipo"] == team_sel)]
+        fig = _touch_heatmap(g, f"{team_sel} — where it plays ({temporada})") if not g.empty else None
+        if fig is not None:
+            st.plotly_chart(fig, use_container_width=True)
+            st.caption("Density of the team's on-ball actions per match, attacking "
+                       "left → right. Brighter = more of the game happens there.")
+    with sc:
+        s = sonar[(sonar["liga"] == liga) & (sonar["temporada"] == temporada)
+                  & (sonar["equipo"] == team_sel)]
+        fig = _pass_sonar(s, f"{team_sel} — pass sonar") if not s.empty else None
+        if fig is not None:
+            st.plotly_chart(fig, use_container_width=True)
+            st.caption("Each wedge is a passing direction (forward = up). Length = "
+                       "average pass distance that way; colour = completion %.")
 
 
 def _render_team_xt(squad, team_sel, league_sel):
@@ -5279,6 +5676,12 @@ def render_team_profile(data):
 
     # ── Expected Threat (xT) Generated ────────────────────────────────────
     _render_team_xt(squad, team_sel, league_sel)
+
+    # ── Expected Threat (xT) Prevented ────────────────────────────────────
+    _render_team_xt_prevented(squad, team_sel, league_sel)
+
+    # ── Heat map & pass sonar ─────────────────────────────────────────────
+    _render_team_maps(squad, team_sel, league_sel)
 
     # ── Player Scorecard & Grading ──────────────────────────────────────
     st.markdown("### 🃏 Player Scorecard & Grading")
