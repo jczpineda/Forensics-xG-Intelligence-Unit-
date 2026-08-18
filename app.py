@@ -80,6 +80,8 @@ _TEAM_XT_GRID_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "te
 _TEAM_XTP_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt_prevented.csv")
 _TEAM_XTP_GRID_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt_prevented_grid.csv")
 _PLAYER_XT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_xt.csv")
+# Per-player xT by zone (current season) — powers the profile's xT gen/prevented maps.
+_PLAYER_XT_GRID_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_xt_grid.csv")
 
 # ── Heat maps & pass sonars (build_maps.py, current season only) ─────────────
 _TEAM_HEATMAP_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_heatmap.csv")
@@ -328,6 +330,13 @@ def _load_team_heatmap_csv(_bust=0):
 @st.cache_data(ttl=3600, show_spinner=False)
 def _load_player_heatmap_csv(_bust=0):
     return _read_id_csv(_PLAYER_HEATMAP_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_player_xt_grid_csv(_bust=0):
+    """Per-player xT by zone (current season): id, temporada, kind (gen/prev),
+    zx, zy, xt.  Powers the Player Profile xT maps."""
+    return _read_id_csv(_PLAYER_XT_GRID_CSV)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -4735,6 +4744,30 @@ def render_profile(data, is_current=True):
             "each other. Shown "
             + ("per 90." if "Per 90" in (mode_label or "") else "as a season total.")
         )
+
+        # ── Where he creates & prevents threat (maps, current season) ────
+        _xtg = _load_player_xt_grid_csv(_csv_mtime(_PLAYER_XT_GRID_CSV))
+        _pid_xt = str(row.get("id", "")) if "id" in row.index else ""
+        _mine = _xtg[_xtg["id"] == _pid_xt] if (_pid_xt and not _xtg.empty) else pd.DataFrame()
+        if not _mine.empty:
+            _gen = _mine[_mine["kind"] == "gen"]
+            _prv = _mine[_mine["kind"] == "prev"]
+            if not is_current and (not _gen.empty or not _prv.empty):
+                st.caption("xT maps are built for the current season (2025-26).")
+            if not _gen.empty:
+                _f = _xt_zone_heatmap(_gen, player_sel, CURRENT_SEASON)
+                if _f is not None:
+                    st.plotly_chart(_f, use_container_width=False)
+                    st.caption("**xT Generated** — red zones are where his passes and carries "
+                               "raise threat; blue where he moves it back to safety. Attacks "
+                               "left → right.")
+            if not _prv.empty:
+                _f = _xt_prevented_heatmap(_prv.rename(columns={"xt": "xtp"}),
+                                           player_sel, CURRENT_SEASON)
+                if _f is not None:
+                    st.plotly_chart(_f, use_container_width=False)
+                    st.caption("**xT Prevented** — where his ball-winning actions deny the most "
+                               "threat (his own goal is on the left).")
 
     # ── Heat map & pass sonar (current season only) ──────────────────────
     _pid = str(row.get("id", "")) if "id" in row.index else ""

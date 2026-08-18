@@ -42,9 +42,16 @@ _SURF = os.path.join(_THIS, "xt_surface.csv")
 _OUT_PLAYER = os.path.join(_THIS, "player_xt.csv")
 _OUT_TEAMP = os.path.join(_THIS, "team_xt_prevented.csv")
 _OUT_TEAMP_GRID = os.path.join(_THIS, "team_xt_prevented_grid.csv")
+_OUT_PLAYER_GRID = os.path.join(_THIS, "player_xt_grid.csv")
 
 LEAGUES, SEASONS = bx.LEAGUES, bx.SEASONS
 NX, NY, NZ = bx.NX, bx.NY, bx.NZ
+
+# Per-player xT MAPS (by zone) are only stored for the current season, to keep
+# the CSV small.  A player needs at least this much involvement to be mapped.
+CURRENT = "2025-2026"
+MIN_MOVES_MAP = 15
+MIN_DEF_MAP = 8
 
 # Ball-winning / threat-denying defensive actions.  Tackle (7) requires a won
 # outcome; the rest are possession regains or a cleared danger.
@@ -135,6 +142,10 @@ def collect(seasons, V):
     team_prev_total = collections.Counter()
     team_matches = collections.Counter()
 
+    # Per-player xT by zone, current season only (for the profile maps).
+    pgen_grid = collections.defaultdict(lambda: np.zeros(NZ))
+    pprev_grid = collections.defaultdict(lambda: np.zeros(NZ))
+
     id_map_all = bx.load_player_team_map()
     n_files = 0
 
@@ -161,12 +172,15 @@ def collect(seasons, V):
                     team_matches[key] += 1
                     team_prev.setdefault(key, np.zeros(NZ))
 
+                _cur = season == CURRENT
                 for sz, ez, pid, cid in moves:
                     p = player[(pid, season)]
                     p["gen"] += delta[sz, ez]
                     p["moves"] += 1
                     if p["liga"] is None and pid in id_map:
                         p["liga"], p["equipo"] = id_map[pid]
+                    if _cur:
+                        pgen_grid[pid][sz] += delta[sz, ez]   # attribute to the start zone
 
                 for z, mz, pid, cid in def_acts:
                     val = V[mz]
@@ -175,6 +189,8 @@ def collect(seasons, V):
                     p["def"] += 1
                     if p["liga"] is None and pid in id_map:
                         p["liga"], p["equipo"] = id_map[pid]
+                    if _cur:
+                        pprev_grid[pid][z] += val               # where the action happened
                     k = key_of.get(cid)
                     if k is not None:
                         team_prev[k][z] += val
@@ -184,10 +200,10 @@ def collect(seasons, V):
 
     print(f"Parsed {n_files} matches -> {len(player)} player-seasons, "
           f"{len(team_prev)} team-seasons")
-    return player, team_prev, team_prev_total, team_matches, n_files
+    return player, team_prev, team_prev_total, team_matches, pgen_grid, pprev_grid, n_files
 
 
-def build_frames(player, team_prev, team_prev_total, team_matches):
+def build_frames(player, team_prev, team_prev_total, team_matches, pgen_grid, pprev_grid):
     prows = []
     for (pid, season), p in player.items():
         prows.append({
@@ -198,6 +214,28 @@ def build_frames(player, team_prev, team_prev_total, team_matches):
             "moves": p["moves"], "def_actions": p["def"],
         })
     player_df = pd.DataFrame(prows)
+
+    # Per-player xT maps (current season, mapped players only).
+    pgrid_rows = []
+    _moves_cur = {pid: player[(pid, CURRENT)]["moves"] for pid in pgen_grid
+                  if (pid, CURRENT) in player}
+    _def_cur = {pid: player[(pid, CURRENT)]["def"] for pid in pprev_grid
+                if (pid, CURRENT) in player}
+    for pid, zones in pgen_grid.items():
+        if _moves_cur.get(pid, 0) < MIN_MOVES_MAP:
+            continue
+        for z in range(NZ):
+            if zones[z] != 0:
+                pgrid_rows.append({"id": pid, "temporada": CURRENT, "kind": "gen",
+                                   "zx": z // NY, "zy": z % NY, "xt": round(float(zones[z]), 5)})
+    for pid, zones in pprev_grid.items():
+        if _def_cur.get(pid, 0) < MIN_DEF_MAP:
+            continue
+        for z in range(NZ):
+            if zones[z] != 0:
+                pgrid_rows.append({"id": pid, "temporada": CURRENT, "kind": "prev",
+                                   "zx": z // NY, "zy": z % NY, "xt": round(float(zones[z]), 5)})
+    player_grid_df = pd.DataFrame(pgrid_rows)
 
     trows, grows = [], []
     for key, zones in team_prev.items():
@@ -219,7 +257,7 @@ def build_frames(player, team_prev, team_prev_total, team_matches):
                     "zx": z // NY, "zy": z % NY,
                     "xtp": round(float(zones[z]) / matches, 5),
                 })
-    return player_df, pd.DataFrame(trows), pd.DataFrame(grows)
+    return player_df, pd.DataFrame(trows), pd.DataFrame(grows), player_grid_df
 
 
 def main():
@@ -230,8 +268,9 @@ def main():
     V = load_surface()
     print(f"Loaded xt_surface.csv  (range {V.min():.5f} - {V.max():.5f})")
 
-    player, team_prev, team_prev_total, team_matches, _ = collect(seasons, V)
-    player_df, teamp_df, grid_df = build_frames(player, team_prev, team_prev_total, team_matches)
+    player, team_prev, team_prev_total, team_matches, pgen_grid, pprev_grid, _ = collect(seasons, V)
+    player_df, teamp_df, grid_df, pgrid_df = build_frames(
+        player, team_prev, team_prev_total, team_matches, pgen_grid, pprev_grid)
 
     print("\nTop 12 xT-preventing team-seasons (per match):")
     for _, r in teamp_df.sort_values("xtp_per_match", ascending=False).head(12).iterrows():
@@ -247,9 +286,11 @@ def main():
         player_df.to_csv(_OUT_PLAYER, index=False, encoding="utf-8-sig")
         teamp_df.to_csv(_OUT_TEAMP, index=False, encoding="utf-8")
         grid_df.to_csv(_OUT_TEAMP_GRID, index=False, encoding="utf-8")
+        pgrid_df.to_csv(_OUT_PLAYER_GRID, index=False, encoding="utf-8-sig")
         print(f"\nWrote {_OUT_PLAYER} ({len(player_df)} rows)")
         print(f"Wrote {_OUT_TEAMP} ({len(teamp_df)} rows)")
         print(f"Wrote {_OUT_TEAMP_GRID} ({len(grid_df)} rows)")
+        print(f"Wrote {_OUT_PLAYER_GRID} ({len(pgrid_df)} rows)")
     else:
         print("\n(validate mode — nothing written)")
 
