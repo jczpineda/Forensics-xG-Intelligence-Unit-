@@ -89,6 +89,11 @@ _PLAYER_HEATMAP_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "
 _TEAM_SONAR_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_sonar.csv")
 _PLAYER_SONAR_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_sonar.csv")
 
+# ── Pivot Index (build_pivot_index.py) — deep-lying playmaker scoring, one row
+# per midfielder-season.  CONTROL / PROGRESSION / ANCHOR percentiles plus the
+# combined PIVOT; powers the Team Profile's midfield-archetype quadrant.
+_PLAYER_PIVOT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_pivot.csv")
+
 
 def _csv_mtime(path):
     """Return CSV file modification time as int (for cache-busting)."""
@@ -347,6 +352,14 @@ def _load_team_sonar_csv(_bust=0):
 @st.cache_data(ttl=3600, show_spinner=False)
 def _load_player_sonar_csv(_bust=0):
     return _read_id_csv(_PLAYER_SONAR_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_player_pivot_csv(_bust=0):
+    """Pivot Index per midfielder-season: id, temporada, liga, equipo, minutes,
+    CONTROL / PROGRESSION / ANCHOR / PIVOT and the raw components.  Built by
+    build_pivot_index.py; empty frame if it hasn't been run."""
+    return _read_id_csv(_PLAYER_PIVOT_CSV)
 
 
 META_COLS = {"nombre", "posicion", "posicion_detail", "league_display", "Player",
@@ -5539,6 +5552,183 @@ def _render_team_xt(squad, team_sel, league_sel):
         )
 
 
+def _pivot_verdict(rank, name, score):
+    """Turn the squad's best Pivot Index into a plain-language verdict.  The
+    rank is Europe-wide for that season (all seven leagues), so it already
+    folds in control, progression and how deep the player operates."""
+    if rank <= 20:
+        return ("✅", f"**{name}** is a genuine deep-lying playmaker — "
+                      f"{_ordinal(rank)} in Europe this season.")
+    if rank <= 60:
+        return ("🟢", f"**{name}** is a credible pivot ({_ordinal(rank)} in Europe), "
+                      f"without being an elite one.")
+    if rank <= 150:
+        return ("🟠", f"No established regista. The best profile, **{name}**, ranks "
+                      f"{_ordinal(rank)} in Europe — the squad's control and its "
+                      f"progression sit in different players.")
+    return ("🔴", f"No deep playmaking presence at all — the best midfield profile, "
+                  f"**{name}**, is only {_ordinal(rank)} in Europe.")
+
+
+def _render_team_pivot(squad, team_sel, league_sel):
+    """Midfield archetypes: does this squad contain a true deep-lying playmaker?
+
+    Plots the Pivot Index's two on-ball axes against each other — CONTROL (does
+    the ball go through him and survive) vs PROGRESSION (does it gain value when
+    it does) — with colour carrying the third axis, ANCHOR (how deep he plays).
+    A regista sits top-right in a dark dot; an empty top-right corner IS the
+    answer for a club that hasn't got one.  Built by build_pivot_index.py."""
+    st.markdown("### 🎛️ Midfield Archetypes — is there a true pivot?")
+    st.caption(
+        "A deep-lying playmaker is an *intersection*, not a single number: high "
+        "passing volume alone is a recycler, high progression alone is an advanced "
+        "creator. Every midfielder in the seven leagues is percentile-ranked on "
+        "three axes — **CONTROL** (own-half and total pass volume, completion, ball "
+        "security), **PROGRESSION** (xT generated per 90 and per move, long passes, "
+        "through balls, forward-pass share) and **ANCHOR** (share of passes played "
+        "in his own half). Minimum 600 minutes."
+    )
+
+    piv = _load_player_pivot_csv(_csv_mtime(_PLAYER_PIVOT_CSV))
+    if piv.empty:
+        st.info(
+            "The Pivot Index hasn't been built yet — run "
+            "`python build_pivot_index.py build` to generate `player_pivot.csv`."
+        )
+        return
+
+    liga = str(squad["liga"].iloc[0]) if "liga" in squad.columns else ""
+    temporada = str(squad["temporada"].iloc[0]) if "temporada" in squad.columns else ""
+    pool = piv[(piv["liga"] == liga) & (piv["temporada"] == temporada)].copy()
+    mine = pool[pool["equipo"] == team_sel].copy()
+    if mine.empty:
+        if pool.empty:
+            # Bundesliga's historical file was rebuilt from event JSONs and has
+            # no own-half passing split, so past Bundesliga seasons can't be
+            # scored at all — say so rather than implying nobody played enough.
+            st.info(
+                f"The Pivot Index isn't available for {league_sel} in {temporada} — "
+                "the source season-stat file for those seasons has no own-half "
+                "passing split, which the Control and Anchor axes both need."
+            )
+        else:
+            st.info(f"No {team_sel} midfielder reached 600 minutes in {temporada}.")
+        return
+    mine = mine.sort_values("PIVOT", ascending=False)
+
+    best = mine.iloc[0]
+    icon, verdict = _pivot_verdict(int(best["pivot_rank"]), best["nombre"], best["PIVOT"])
+
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.metric(f"Best pivot profile — {best['nombre']}", f"{best['PIVOT']:.1f}",
+                  delta=f"{_ordinal(int(best['pivot_rank']))} in Europe",
+                  delta_color="off")
+    with k2:
+        # Clubs ordered by their single best midfielder: sort desc, then the
+        # first appearance of each club is that club's best profile.
+        club_order = pool.sort_values("PIVOT", ascending=False)["equipo"].drop_duplicates().tolist()
+        lg_rank = club_order.index(team_sel) + 1
+        st.metric(f"Rank within {league_sel}",
+                  f"{_ordinal(lg_rank)} of {len(club_order)}",
+                  help="Clubs ranked by their single best midfielder's Pivot Index.")
+    with k3:
+        st.metric("Squad midfielders scored", f"{len(mine)}",
+                  help="Midfielders with at least 600 minutes this season.")
+    st.markdown(f"{icon} {verdict}")
+
+    # ── The quadrant ─────────────────────────────────────────────────────
+    x_mid = float(pool["CONTROL"].median())
+    y_mid = float(pool["PROGRESSION"].median())
+    fig = go.Figure()
+
+    # League peers as context, so the team's cluster is read against something.
+    others = pool[pool["equipo"] != team_sel]
+    if not others.empty:
+        fig.add_trace(go.Scatter(
+            x=others["CONTROL"], y=others["PROGRESSION"], mode="markers",
+            marker=dict(size=7, color=_XT_RECESSIVE, line=dict(width=0)),
+            name=f"Other {league_sel} midfielders",
+            customdata=np.stack([others["nombre"], others["equipo"]], axis=-1),
+            hovertemplate="<b>%{customdata[0]}</b> — %{customdata[1]}<br>"
+                          "Control: %{x:.0f}<br>Progression: %{y:.0f}<extra></extra>",
+        ))
+
+    sizes = 12 + 20 * (mine["minutes"] / max(float(mine["minutes"].max()), 1.0))
+    fig.add_trace(go.Scatter(
+        x=mine["CONTROL"], y=mine["PROGRESSION"], mode="markers+text",
+        text=mine["nombre"], textposition="top center",
+        textfont=dict(size=11),
+        marker=dict(size=sizes, color=mine["ANCHOR"], colorscale="Teal",
+                    cmin=0, cmax=100, line=dict(width=1, color="#2d3436"),
+                    colorbar=dict(title="Anchor<br>(deep ↑)", thickness=14, len=0.7)),
+        name=team_sel,
+        customdata=np.stack([mine["ANCHOR"], mine["minutes"], mine["long90"],
+                             mine["xt90"], mine["pivot_rank"]], axis=-1),
+        hovertemplate="<b>%{text}</b><br>Control: %{x:.0f}<br>"
+                      "Progression: %{y:.0f}<br>Anchor: %{customdata[0]:.0f}<br>"
+                      "Minutes: %{customdata[1]:.0f}<br>"
+                      "Long passes/90: %{customdata[2]:.1f}<br>"
+                      "xT/90: %{customdata[3]:.3f}<br>"
+                      "Europe rank: %{customdata[4]:.0f}<extra></extra>",
+    ))
+
+    fig.add_vline(x=x_mid, line=dict(color="#b2bec3", width=1, dash="dot"))
+    fig.add_hline(y=y_mid, line=dict(color="#b2bec3", width=1, dash="dot"))
+    for xa, ya, txt, anc in (
+        (99, 99, "PIVOT PLAYMAKER", "right"),
+        (1, 99, "ADVANCED CREATOR", "left"),
+        (99, 1, "RECYCLER / HOLDER", "right"),
+        (1, 1, "LIMITED ON THE BALL", "left"),
+    ):
+        fig.add_annotation(x=xa, y=ya, text=txt, showarrow=False,
+                           xanchor=anc, yanchor="top" if ya > 50 else "bottom",
+                           font=dict(size=10, color="#95a5a6"))
+    fig.update_layout(
+        title=f"Midfield archetypes — {team_sel}, {temporada}",
+        template="plotly_white", height=560,
+        xaxis=dict(title="CONTROL — does the ball go through him?", range=[0, 102]),
+        yaxis=dict(title="PROGRESSION — does it gain value?", range=[0, 102]),
+        margin=dict(l=10, r=10, t=60, b=50),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(
+        "Dot size is minutes played; colour is **ANCHOR** — dark means he builds "
+        "from his own half, pale means he operates high up the pitch. The dotted "
+        f"lines are the {league_sel} midfield medians. A true pivot is a *dark* dot "
+        "in the top-right: a light dot there is an advanced creator who happens to "
+        "see a lot of the ball."
+    )
+
+    with st.expander("📋 Squad detail & how the Pivot Index is built"):
+        tbl = mine[["nombre", "minutes", "PIVOT", "pivot_rank", "CONTROL",
+                    "PROGRESSION", "ANCHOR", "deep_pass90", "pass90", "long90",
+                    "xt90", "cmp_pct"]].rename(columns={
+            "nombre": "Player", "minutes": "Minutes", "pivot_rank": "Europe rank",
+            "deep_pass90": "Own-half passes/90", "pass90": "Passes/90",
+            "long90": "Long passes/90", "xt90": "xT/90", "cmp_pct": "Pass %"})
+        st.dataframe(tbl.round(2), use_container_width=True, hide_index=True)
+        st.markdown(
+            "**Method.** `PIVOT = √(CONTROL × PROGRESSION) × anchor_gate`. The "
+            "geometric mean is the point: a weighted *sum* lets a high-volume "
+            "destroyer with no progression score like a playmaker, and the product "
+            "does not — a midfielder has to be good at both. ANCHOR is only a gate "
+            "(0.70 → 1.00), never an additive term, because a holding midfielder "
+            "who never leaves his own half tops the anchor metric without being a "
+            "playmaker: it can pull a score down for playing too high, but it can "
+            "never lift one.\n\n"
+            "Components are percentile-ranked within each season's midfielder pool "
+            "across all seven leagues, so scores compare across leagues and across "
+            "seasons. Built by `build_pivot_index.py` from the season-stat CSVs "
+            "plus the xT model in `player_xt.csv`.\n\n"
+            "*Coverage note.* The Bundesliga can only be scored for the current "
+            "season — its historical file was rebuilt from event JSONs and carries "
+            "no own-half passing split — so the pools for 2020-21 → 2024-25 are "
+            "six leagues rather than seven."
+        )
+
+
 def render_team_profile(data):
     df_total = data["total"]
     st.subheader("🏟️ Team Profile")
@@ -5712,6 +5902,9 @@ def render_team_profile(data):
 
     # ── Expected Threat (xT) Prevented ────────────────────────────────────
     _render_team_xt_prevented(squad, team_sel, league_sel)
+
+    # ── Midfield archetypes / Pivot Index ─────────────────────────────────
+    _render_team_pivot(squad, team_sel, league_sel)
 
     # ── Heat map & pass sonar ─────────────────────────────────────────────
     _render_team_maps(squad, team_sel, league_sel)
