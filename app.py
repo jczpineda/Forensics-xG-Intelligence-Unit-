@@ -89,6 +89,14 @@ _PLAYER_HEATMAP_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "
 _TEAM_SONAR_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_sonar.csv")
 _PLAYER_SONAR_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_sonar.csv")
 
+# ── xT CONCEDED (build_xt_conceded.py) — the threat opponents create against
+# this team, charged to the defending side and mirrored into its own attacking
+# orientation, so the map reads with its own goal on the left like every other
+# defensive map here.  Lower is better, unambiguously (unlike xT prevented,
+# which partly measures defensive workload).
+_TEAM_XTC_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt_conceded.csv")
+_TEAM_XTC_GRID_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), "team_xt_conceded_grid.csv")
+
 # ── Pivot Index (build_pivot_index.py) — deep-lying playmaker scoring, one row
 # per midfielder-season.  CONTROL / PROGRESSION / ANCHOR percentiles plus the
 # combined PIVOT; powers the Team Profile's midfield-archetype quadrant.
@@ -289,6 +297,20 @@ def _load_team_xtp_grid_csv(_bust=0):
     """xT prevented per match by the zone the defensive action happened in
     (team's own orientation, so its defensive third is on the left)."""
     return _read_team_xt(_TEAM_XTP_GRID_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_team_xtc_csv(_bust=0):
+    """xT conceded per team-season: liga, temporada, equipo, matches,
+    xtc_total, xtc_per_match.  Built by build_xt_conceded.py."""
+    return _read_team_xt(_TEAM_XTC_CSV)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_team_xtc_grid_csv(_bust=0):
+    """xT conceded per match by the zone the opponent's action started in,
+    mirrored into this team's own orientation (own goal on the left)."""
+    return _read_team_xt(_TEAM_XTC_GRID_CSV)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -5264,6 +5286,47 @@ def _xt_prevented_heatmap(grid, team_sel, temporada, lim=None):
     return fig
 
 
+def _xt_conceded_heatmap(grid, team_sel, temporada, lim=None):
+    """Heatmap of xT CONCEDED per match, by the zone the opponent's action
+    started in — mirrored into this team's own attacking orientation, so its
+    own goal is on the left exactly like the xT-prevented map.
+
+    Net values, so the diverging scale is the right one: red means opponents
+    gain threat building from there, blue means they tend to lose it — a zone
+    where this team pushes them backwards."""
+    z = np.full((_XT_NY, _XT_NX), np.nan)
+    for _, r in grid.iterrows():
+        zx, zy = int(r["zx"]), int(r["zy"])
+        if 0 <= zx < _XT_NX and 0 <= zy < _XT_NY:
+            z[zy, zx] = float(r["xtc"])
+    if np.all(np.isnan(z)):
+        return None
+    if not lim or not np.isfinite(lim):
+        lim = float(np.nanmax(np.abs(z)))
+    lim = float(lim) or 1.0
+    dx, dy = 100.0 / _XT_NX, 100.0 / _XT_NY
+    fig = go.Figure(go.Heatmap(
+        z=z, zmid=0, zmin=-lim, zmax=lim,
+        x0=dx / 2, dx=dx, y0=dy / 2, dy=dy,
+        colorscale=_XT_DIVERGING, xgap=1, ygap=1,
+        colorbar=dict(title=dict(text="xT conceded / match", side="right"),
+                      thickness=14, outlinewidth=0),
+        hovertemplate="Threat conceded: %{z:+.4f} per match<extra></extra>",
+    ))
+    fig.update_layout(
+        title=f"{team_sel} — where the threat is conceded ({temporada})",
+        template="plotly_white", width=900, height=600, shapes=_pitch_shapes(),
+        plot_bgcolor=_PITCH_FILL, paper_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(title="Own goal  →  opponent goal", range=[-3, 103],
+                   showticklabels=False, showgrid=False, zeroline=False),
+        yaxis=dict(title="Pitch width", range=[-2, 102],
+                   showticklabels=False, showgrid=False, zeroline=False,
+                   scaleanchor="x", scaleratio=_PITCH_M_Y / _PITCH_M_X),
+        margin=dict(l=50, r=20, t=70, b=55),
+    )
+    return fig
+
+
 def _touch_heatmap(grid, title, count_col="touches"):
     """Touch-density heat map on the pitch (attacking left → right).  Each cell
     is normalised to the map's own peak, then smoothed, so the shape reads as a
@@ -5402,6 +5465,208 @@ def _render_team_xt_prevented(squad, team_sel, league_sel):
                     f"zone; the colour scale is fixed across {league_sel} this "
                     "season so the maps compare directly."
                 )
+
+
+def _render_team_xt_conceded(squad, team_sel, league_sel):
+    """Open-play xT conceded: how much threat opponents build against this team,
+    where they build it, and the net of created minus conceded.  Reads the CSVs
+    built by build_xt_conceded.py."""
+    st.markdown("### 🚨 Expected Threat (xT) Conceded")
+    st.caption(
+        "The threat opponents create **against** this team — every opposition "
+        "open-play pass and carry valued on the same fitted surface and charged "
+        "to the side it was played against. Unlike xT prevented, which partly "
+        "measures how *often* a team has to defend, this has no ambiguity: "
+        "lower is better. Always per match."
+    )
+
+    xtc = _load_team_xtc_csv(_csv_mtime(_TEAM_XTC_CSV))
+    if xtc.empty:
+        st.info(
+            "xT conceded hasn't been built yet — run "
+            "`python build_xt_conceded.py build` to generate "
+            "`team_xt_conceded.csv` from the Opta event JSONs."
+        )
+        return
+
+    liga = str(squad["liga"].iloc[0]) if "liga" in squad.columns else ""
+    temporada = str(squad["temporada"].iloc[0]) if "temporada" in squad.columns else ""
+    peers = xtc[(xtc["liga"] == liga) & (xtc["temporada"] == temporada)].copy()
+    if peers.empty:
+        st.info(f"No xT-conceded data for {league_sel} in {temporada or 'this season'}.")
+        return
+
+    # Ascending: conceding least is rank 1.
+    peers = peers.sort_values("xtc_per_match").reset_index(drop=True)
+    peers["Rank"] = peers.index + 1
+    me = peers[peers["equipo"] == team_sel]
+    if me.empty:
+        st.info(f"No xT-conceded data for {team_sel} in {temporada}.")
+        return
+    league_avg = float(peers["xtc_per_match"].mean())
+    my_xtc = float(me["xtc_per_match"].iloc[0])
+    my_rank = int(me["Rank"].iloc[0])
+
+    # Net xT — the expected-threat equivalent of goal difference.
+    gen = _load_team_xt_csv(_csv_mtime(_TEAM_XT_CSV))
+    my_gen = None
+    if not gen.empty:
+        g = gen[(gen["liga"] == liga) & (gen["temporada"] == temporada)
+                & (gen["equipo"] == team_sel)]
+        if not g.empty:
+            my_gen = float(g["xt_per_match"].iloc[0])
+
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.metric(f"{team_sel} — xT conceded / match", f"{my_xtc:.3f}",
+                  delta=f"{my_xtc - league_avg:+.3f} vs league",
+                  delta_color="inverse")   # conceding less than average is good
+    with k2:
+        st.metric("League rank", f"{_ordinal(my_rank)} of {len(peers)}",
+                  help="1st = concedes the least open-play threat per match.")
+    with k3:
+        if my_gen is not None:
+            st.metric("Net xT / match", f"{my_gen - my_xtc:+.3f}",
+                      help="xT generated minus xT conceded — the expected-threat "
+                           "equivalent of goal difference.")
+        else:
+            st.metric(f"{league_sel} average", f"{league_avg:.3f}")
+
+    # ── League ranking ───────────────────────────────────────────────────
+    order = peers.sort_values("xtc_per_match", ascending=False)   # best on top
+    colors = [_XT_HIGHLIGHT if t == team_sel else _XT_RECESSIVE
+              for t in order["equipo"]]
+    fig = go.Figure(go.Bar(
+        x=order["xtc_per_match"], y=order["equipo"], orientation="h",
+        marker=dict(color=colors, line=dict(width=0)),
+        text=[f"{v:.3f}" for v in order["xtc_per_match"]],
+        textposition="outside", cliponaxis=False,
+        customdata=np.stack([order["Rank"], order["matches"]], axis=-1),
+        hovertemplate="<b>%{y}</b><br>xT conceded per match: %{x:.3f}<br>"
+                      "Rank: %{customdata[0]}<br>Matches: %{customdata[1]}"
+                      "<extra></extra>",
+    ))
+    fig.add_vline(x=league_avg, line=dict(color="#e9c46a", width=2, dash="dash"),
+                  annotation_text="League avg", annotation_position="top")
+    fig.update_layout(
+        title=f"Open-play xT conceded per match — {league_sel}, {temporada}",
+        template="plotly_white",
+        height=max(360, 26 * len(order) + 130),
+        xaxis_title="xT conceded per match (lower is better)", yaxis_title=None,
+        margin=dict(l=10, r=60, t=60, b=40), showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(f"Best defences sit at the **bottom** — the axis is threat conceded, "
+               f"so shorter is better. {team_sel} is highlighted in dark green.")
+
+    # ── Where that threat is conceded ────────────────────────────────────
+    grid_all = _load_team_xtc_grid_csv(_csv_mtime(_TEAM_XTC_GRID_CSV))
+    if not grid_all.empty:
+        league_grid = grid_all[(grid_all["liga"] == liga)
+                               & (grid_all["temporada"] == temporada)]
+        grid = league_grid[league_grid["equipo"] == team_sel]
+        if not grid.empty:
+            lim = float(league_grid["xtc"].abs().max())
+            hm = _xt_conceded_heatmap(grid, team_sel, temporada, lim=lim)
+            if hm is not None:
+                st.plotly_chart(hm, use_container_width=False)
+                st.caption(
+                    "Read in **this team's** orientation — its own goal is on the "
+                    "left, like the xT-prevented map. Each cell is the threat "
+                    "opponents generate per match from moves **starting** in that "
+                    "zone: red means they build danger from there, blue means they "
+                    "tend to lose ground there. A red band on the left is a side "
+                    "being played through inside its own half; red on the right "
+                    "means opponents are already arriving in the final third. The "
+                    f"colour scale is fixed across {league_sel} this season."
+                )
+
+    # ── Net xT: the two halves against each other ────────────────────────
+    net = None
+    if not gen.empty:
+        g_league = gen[(gen["liga"] == liga) & (gen["temporada"] == temporada)]
+        net = peers.merge(g_league[["equipo", "xt_per_match"]], on="equipo", how="inner")
+        net["net_xt"] = net["xt_per_match"] - net["xtc_per_match"]
+        net = net.sort_values("net_xt", ascending=False).reset_index(drop=True)
+        net["NetRank"] = net.index + 1
+
+    if net is not None and len(net) > 2:
+        st.markdown("#### ⚖️ Net xT — creation against concession")
+        st.caption(
+            "Both halves on one plot. Right = creates more threat; **up = concedes "
+            "less** (the axis is reversed so better is always higher). The diagonal "
+            "bands are net xT, so the top-right corner is genuine two-way dominance "
+            "rather than a good attack papering over a bad defence."
+        )
+        x_mid, y_mid = float(net["xt_per_match"].median()), float(net["xtc_per_match"].median())
+        colors = [_XT_HIGHLIGHT if t == team_sel else _XT_RECESSIVE for t in net["equipo"]]
+        qfig = go.Figure(go.Scatter(
+            x=net["xt_per_match"], y=net["xtc_per_match"], mode="markers+text",
+            text=net["equipo"], textposition="top center", textfont=dict(size=9),
+            marker=dict(size=13, color=colors, line=dict(width=1, color="#2d3436")),
+            customdata=np.stack([net["net_xt"], net["NetRank"]], axis=-1),
+            hovertemplate="<b>%{text}</b><br>Created: %{x:.3f}<br>"
+                          "Conceded: %{y:.3f}<br>Net: %{customdata[0]:+.3f} "
+                          "(%{customdata[1]:.0f} in league)<extra></extra>",
+        ))
+        qfig.add_vline(x=x_mid, line=dict(color="#b2bec3", width=1, dash="dot"))
+        qfig.add_hline(y=y_mid, line=dict(color="#b2bec3", width=1, dash="dot"))
+        _xr = [float(net["xt_per_match"].min()), float(net["xt_per_match"].max())]
+        _yr = [float(net["xtc_per_match"].min()), float(net["xtc_per_match"].max())]
+        _px = (_xr[1] - _xr[0]) * 0.06 or 0.01
+        for xa, ya, txt, ax_, ay_ in (
+            (_xr[1], _yr[0], "DOMINANT", "right", "bottom"),
+            (_xr[0], _yr[0], "SOLID BUT BLUNT", "left", "bottom"),
+            (_xr[1], _yr[1], "ATTACKING BUT LEAKY", "right", "top"),
+            (_xr[0], _yr[1], "STRUGGLING", "left", "top"),
+        ):
+            qfig.add_annotation(x=xa, y=ya, text=txt, showarrow=False,
+                                xanchor=ax_, yanchor=ay_,
+                                font=dict(size=10, color="#95a5a6"))
+        qfig.update_layout(
+            title=f"Creation vs concession — {league_sel}, {temporada}",
+            template="plotly_white", height=560, showlegend=False,
+            xaxis=dict(title="xT generated per match  →",
+                       range=[_xr[0] - _px, _xr[1] + _px]),
+            # Reversed: less conceded (better) sits at the top.
+            yaxis=dict(title="←  xT conceded per match (less is higher)",
+                       autorange="reversed"),
+            margin=dict(l=10, r=10, t=60, b=50),
+        )
+        st.plotly_chart(qfig, use_container_width=True)
+        my_net = net[net["equipo"] == team_sel]
+        if not my_net.empty:
+            r = my_net.iloc[0]
+            st.caption(
+                f"**{team_sel}** creates {r['xt_per_match']:.3f} and concedes "
+                f"{r['xtc_per_match']:.3f} per match — net **{r['net_xt']:+.3f}**, "
+                f"{_ordinal(int(r['NetRank']))} of {len(net)} in {league_sel}."
+            )
+
+    with st.expander("📋 Full league table & how xT conceded is built"):
+        if net is not None:
+            table = net[["NetRank", "equipo", "xt_per_match", "xtc_per_match",
+                         "net_xt", "matches"]].rename(columns={
+                "NetRank": "Net rank", "equipo": "Team",
+                "xt_per_match": "xT created / match",
+                "xtc_per_match": "xT conceded / match",
+                "net_xt": "Net xT / match", "matches": "Matches"})
+        else:
+            table = peers[["Rank", "equipo", "xtc_per_match", "xtc_total", "matches"]].rename(
+                columns={"equipo": "Team", "xtc_per_match": "xT conceded / match",
+                         "xtc_total": "xT conceded total", "matches": "Matches"})
+        st.dataframe(table, use_container_width=True, hide_index=True)
+        st.markdown(
+            "**Method.** Every opponent open-play move is valued `V(end) − V(start)` "
+            "on the same surface as xT generated, then charged to the team it was "
+            "played against, with the starting zone mirrored into that team's own "
+            "orientation. Because every move created by one side is conceded by the "
+            "other, the league totals of generated and conceded agree exactly — "
+            "that identity is the builder's correctness check.\n\n"
+            "Values are net, so an opponent playing backwards carries negative xT "
+            "and is netted off. Set pieces, penalties and direct free-kick shots are "
+            "excluded, so this is strictly open-play. Built by `build_xt_conceded.py`."
+        )
 
 
 def _render_team_maps(squad, team_sel, league_sel):
@@ -5899,6 +6164,9 @@ def render_team_profile(data):
 
     # ── Expected Threat (xT) Generated ────────────────────────────────────
     _render_team_xt(squad, team_sel, league_sel)
+
+    # ── Expected Threat (xT) Conceded ─────────────────────────────────────
+    _render_team_xt_conceded(squad, team_sel, league_sel)
 
     # ── Expected Threat (xT) Prevented ────────────────────────────────────
     _render_team_xt_prevented(squad, team_sel, league_sel)

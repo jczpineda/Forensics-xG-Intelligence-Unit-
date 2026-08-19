@@ -1,0 +1,799 @@
+liga,temporada,equipo,matches,xtc_total,xtc_per_match
+Bundesliga,2020-2021,Bayern München,34,16.5074,0.4855
+Bundesliga,2020-2021,RB Leipzig,34,13.9933,0.4116
+Bundesliga,2020-2021,Arminia Bielefeld,34,25.38,0.7465
+Bundesliga,2020-2021,Mainz 05,34,23.4217,0.6889
+Bundesliga,2020-2021,Werder Bremen,34,25.2954,0.744
+Bundesliga,2020-2021,Stuttgart,34,23.8833,0.7024
+Bundesliga,2020-2021,Eintracht Frankfurt,34,22.6092,0.665
+Bundesliga,2020-2021,Borussia Dortmund,34,17.6644,0.5195
+Bundesliga,2020-2021,Freiburg,34,23.8935,0.7028
+Bundesliga,2020-2021,Borussia M'gladbach,34,19.3494,0.5691
+Bundesliga,2020-2021,Hertha BSC,34,24.2629,0.7136
+Bundesliga,2020-2021,Union Berlin,34,18.9253,0.5566
+Bundesliga,2020-2021,Hoffenheim,34,22.6137,0.6651
+Bundesliga,2020-2021,Augsburg,34,28.7105,0.8444
+Bundesliga,2020-2021,Köln,34,22.4212,0.6594
+Bundesliga,2020-2021,Wolfsburg,34,20.9567,0.6164
+Bundesliga,2020-2021,Schalke 04,34,27.4541,0.8075
+Bundesliga,2020-2021,Bayer Leverkusen,34,17.9956,0.5293
+Bundesliga,2021-2022,Augsburg,34,27.1463,0.7984
+Bundesliga,2021-2022,Stuttgart,34,24.5883,0.7232
+Bundesliga,2021-2022,Arminia Bielefeld,34,32.4039,0.9531
+Bundesliga,2021-2022,Mainz 05,34,19.4056,0.5708
+Bundesliga,2021-2022,Borussia Dortmund,34,17.7317,0.5215
+Bundesliga,2021-2022,Köln,34,21.1893,0.6232
+Bundesliga,2021-2022,Eintracht Frankfurt,34,25.9215,0.7624
+Bundesliga,2021-2022,RB Leipzig,34,16.2755,0.4787
+Bundesliga,2021-2022,Freiburg,34,22.5016,0.6618
+Bundesliga,2021-2022,Greuther Fürth,34,28.8433,0.8483
+Bundesliga,2021-2022,Hoffenheim,34,21.242,0.6248
+Bundesliga,2021-2022,Hertha BSC,34,27.242,0.8012
+Bundesliga,2021-2022,Bayer Leverkusen,34,21.9501,0.6456
+Bundesliga,2021-2022,Wolfsburg,34,21.3814,0.6289
+Bundesliga,2021-2022,Borussia M'gladbach,34,21.1823,0.623
+Bundesliga,2021-2022,Bochum,34,23.9318,0.7039
+Bundesliga,2021-2022,Union Berlin,34,20.4951,0.6028
+Bundesliga,2021-2022,Bayern München,34,15.8609,0.4665
+Bundesliga,2022-2023,Bayern München,34,15.8618,0.4665
+Bundesliga,2022-2023,Freiburg,34,22.7269,0.6684
+Bundesliga,2022-2023,Werder Bremen,34,24.6797,0.7259
+Bundesliga,2022-2023,Mainz 05,34,23.0814,0.6789
+Bundesliga,2022-2023,Eintracht Frankfurt,34,19.0724,0.561
+Bundesliga,2022-2023,Bayer Leverkusen,34,20.9433,0.616
+Bundesliga,2022-2023,Köln,34,20.5158,0.6034
+Bundesliga,2022-2023,Augsburg,34,28.2819,0.8318
+Bundesliga,2022-2023,RB Leipzig,34,16.1447,0.4748
+Bundesliga,2022-2023,Hertha BSC,34,24.698,0.7264
+Bundesliga,2022-2023,Schalke 04,34,25.4445,0.7484
+Bundesliga,2022-2023,Hoffenheim,34,25.764,0.7578
+Bundesliga,2022-2023,Stuttgart,34,21.8243,0.6419
+Bundesliga,2022-2023,Bochum,34,24.3119,0.7151
+Bundesliga,2022-2023,Union Berlin,34,20.73,0.6097
+Bundesliga,2022-2023,Borussia Dortmund,34,17.7792,0.5229
+Bundesliga,2022-2023,Wolfsburg,34,22.6467,0.6661
+Bundesliga,2022-2023,Borussia M'gladbach,34,23.046,0.6778
+Bundesliga,2023-2024,Darmstadt 98,34,28.3293,0.8332
+Bundesliga,2023-2024,Bochum,34,24.0509,0.7074
+Bundesliga,2023-2024,Borussia Dortmund,34,22.5735,0.6639
+Bundesliga,2023-2024,Bayern München,34,15.7067,0.462
+Bundesliga,2023-2024,Freiburg,34,25.6662,0.7549
+Bundesliga,2023-2024,Borussia M'gladbach,34,27.6819,0.8142
+Bundesliga,2023-2024,Heidenheim,34,28.0956,0.8263
+Bundesliga,2023-2024,Stuttgart,34,16.6722,0.4904
+Bundesliga,2023-2024,Hoffenheim,34,26.2957,0.7734
+Bundesliga,2023-2024,Bayer Leverkusen,34,13.8889,0.4085
+Bundesliga,2023-2024,Köln,34,24.9972,0.7352
+Bundesliga,2023-2024,Augsburg,34,24.4052,0.7178
+Bundesliga,2023-2024,Mainz 05,34,20.8665,0.6137
+Bundesliga,2023-2024,RB Leipzig,34,19.2481,0.5661
+Bundesliga,2023-2024,Union Berlin,34,25.3806,0.7465
+Bundesliga,2023-2024,Eintracht Frankfurt,34,22.0096,0.6473
+Bundesliga,2023-2024,Wolfsburg,34,22.531,0.6627
+Bundesliga,2023-2024,Werder Bremen,34,24.4937,0.7204
+Bundesliga,2024-2025,Augsburg,34,23.15,0.6809
+Bundesliga,2024-2025,Hoffenheim,34,25.8547,0.7604
+Bundesliga,2024-2025,Bochum,34,25.1287,0.7391
+Bundesliga,2024-2025,Bayer Leverkusen,34,13.9958,0.4116
+Bundesliga,2024-2025,Werder Bremen,34,21.5799,0.6347
+Bundesliga,2024-2025,Holstein Kiel,34,30.6696,0.902
+Bundesliga,2024-2025,Heidenheim,34,23.4717,0.6903
+Bundesliga,2024-2025,Wolfsburg,34,23.8025,0.7001
+Bundesliga,2024-2025,RB Leipzig,34,26.58,0.7818
+Bundesliga,2024-2025,Borussia M'gladbach,34,27.6768,0.814
+Bundesliga,2024-2025,Mainz 05,34,21.7579,0.6399
+Bundesliga,2024-2025,Borussia Dortmund,34,20.7923,0.6115
+Bundesliga,2024-2025,St. Pauli,34,22.47,0.6609
+Bundesliga,2024-2025,Bayern München,34,12.1341,0.3569
+Bundesliga,2024-2025,Stuttgart,34,18.6259,0.5478
+Bundesliga,2024-2025,Eintracht Frankfurt,34,22.3068,0.6561
+Bundesliga,2024-2025,Union Berlin,34,24.5302,0.7215
+Bundesliga,2024-2025,Freiburg,34,20.525,0.6037
+Germany_Bundesliga,2025-2026,SV Werder Bremen,34,24.8889,0.732
+Germany_Bundesliga,2025-2026,VfL Wolfsburg,34,28.303,0.8324
+Germany_Bundesliga,2025-2026,Eintracht Frankfurt,34,20.6892,0.6085
+Germany_Bundesliga,2025-2026,1. FSV Mainz 05,34,23.62,0.6947
+Germany_Bundesliga,2025-2026,SC Freiburg,34,25.0822,0.7377
+Germany_Bundesliga,2025-2026,FC St. Pauli,34,23.574,0.6934
+Germany_Bundesliga,2025-2026,Hamburger SV,34,29.2416,0.86
+Germany_Bundesliga,2025-2026,BV Borussia 09 Dortmund,34,18.1359,0.5334
+Germany_Bundesliga,2025-2026,TSG 1899 Hoffenheim,34,18.106,0.5325
+Germany_Bundesliga,2025-2026,RasenBallsport Leipzig,34,22.8259,0.6713
+Germany_Bundesliga,2025-2026,Bayer 04 Leverkusen,34,24.1494,0.7103
+Germany_Bundesliga,2025-2026,1. FC Heidenheim 1846,34,27.5539,0.8104
+Germany_Bundesliga,2025-2026,Borussia VfL Mönchengladbach,34,23.0574,0.6782
+Germany_Bundesliga,2025-2026,1. FC Köln,34,25.4945,0.7498
+Germany_Bundesliga,2025-2026,VfB Stuttgart 1893,34,19.9423,0.5865
+Germany_Bundesliga,2025-2026,FC Augsburg,34,25.0101,0.7356
+Germany_Bundesliga,2025-2026,1. FC Union Berlin,34,24.6374,0.7246
+Germany_Bundesliga,2025-2026,FC Bayern München,34,15.7318,0.4627
+England_Premier_League,2020-2021,Arsenal FC,38,19.1304,0.5034
+England_Premier_League,2020-2021,Wolverhampton Wanderers FC,38,22.0751,0.5809
+England_Premier_League,2020-2021,Brighton & Hove Albion FC,38,18.6818,0.4916
+England_Premier_League,2020-2021,Liverpool FC,38,13.3992,0.3526
+England_Premier_League,2020-2021,Chelsea FC,38,13.3655,0.3517
+England_Premier_League,2020-2021,Tottenham Hotspur FC,38,23.8205,0.6269
+England_Premier_League,2020-2021,Crystal Palace FC,38,25.3142,0.6662
+England_Premier_League,2020-2021,Newcastle United FC,38,24.8466,0.6539
+England_Premier_League,2020-2021,Everton FC,38,21.984,0.5785
+England_Premier_League,2020-2021,Leeds United FC,38,19.4367,0.5115
+England_Premier_League,2020-2021,Leicester City FC,38,19.5548,0.5146
+England_Premier_League,2020-2021,Fulham FC,38,23.3392,0.6142
+England_Premier_League,2020-2021,Manchester City FC,38,12.6693,0.3334
+England_Premier_League,2020-2021,Burnley FC,38,26.9958,0.7104
+England_Premier_League,2020-2021,Southampton FC,38,23.1643,0.6096
+England_Premier_League,2020-2021,Manchester United FC,38,18.2265,0.4796
+England_Premier_League,2020-2021,West Bromwich Albion FC,38,28.0557,0.7383
+England_Premier_League,2020-2021,Sheffield United FC,38,24.2732,0.6388
+England_Premier_League,2020-2021,West Ham United FC,38,25.4561,0.6699
+England_Premier_League,2020-2021,Aston Villa FC,38,23.8121,0.6266
+England_Premier_League,2021-2022,Aston Villa FC,38,20.7429,0.5459
+England_Premier_League,2021-2022,West Ham United FC,38,23.8381,0.6273
+England_Premier_League,2021-2022,Burnley FC,38,24.2139,0.6372
+England_Premier_League,2021-2022,Brentford FC,38,21.3093,0.5608
+England_Premier_League,2021-2022,Leicester City FC,38,25.7864,0.6786
+England_Premier_League,2021-2022,Arsenal FC,38,19.7426,0.5195
+England_Premier_League,2021-2022,Liverpool FC,38,16.4921,0.434
+England_Premier_League,2021-2022,Brighton & Hove Albion FC,38,18.4375,0.4852
+England_Premier_League,2021-2022,Manchester City FC,38,11.3688,0.2992
+England_Premier_League,2021-2022,Crystal Palace FC,38,21.7125,0.5714
+England_Premier_League,2021-2022,Newcastle United FC,38,25.0079,0.6581
+England_Premier_League,2021-2022,Chelsea FC,38,16.2284,0.4271
+England_Premier_League,2021-2022,Norwich City FC,38,27.9538,0.7356
+England_Premier_League,2021-2022,Leeds United FC,38,23.5341,0.6193
+England_Premier_League,2021-2022,Tottenham Hotspur FC,38,22.0194,0.5795
+England_Premier_League,2021-2022,Manchester United FC,38,20.5459,0.5407
+England_Premier_League,2021-2022,Watford FC,38,27.6216,0.7269
+England_Premier_League,2021-2022,Southampton FC,38,27.1095,0.7134
+England_Premier_League,2021-2022,Wolverhampton Wanderers FC,38,25.2385,0.6642
+England_Premier_League,2021-2022,Everton FC,38,24.3115,0.6398
+England_Premier_League,2022-2023,Arsenal FC,38,17.1485,0.4513
+England_Premier_League,2022-2023,Liverpool FC,38,20.6119,0.5424
+England_Premier_League,2022-2023,AFC Bournemouth,38,30.5366,0.8036
+England_Premier_League,2022-2023,Leicester City FC,38,23.908,0.6292
+England_Premier_League,2022-2023,Brighton & Hove Albion FC,38,19.3313,0.5087
+England_Premier_League,2022-2023,Tottenham Hotspur FC,38,22.6006,0.5948
+England_Premier_League,2022-2023,Chelsea FC,38,20.2946,0.5341
+England_Premier_League,2022-2023,Wolverhampton Wanderers FC,38,26.8542,0.7067
+England_Premier_League,2022-2023,Crystal Palace FC,38,24.739,0.651
+England_Premier_League,2022-2023,Leeds United FC,38,24.2601,0.6384
+England_Premier_League,2022-2023,Everton FC,38,28.7401,0.7563
+England_Premier_League,2022-2023,Manchester United FC,38,24.771,0.6519
+England_Premier_League,2022-2023,Manchester City FC,38,15.1524,0.3987
+England_Premier_League,2022-2023,Southampton FC,38,29.1513,0.7671
+England_Premier_League,2022-2023,Newcastle United FC,38,17.9254,0.4717
+England_Premier_League,2022-2023,Brentford FC,38,25.4837,0.6706
+England_Premier_League,2022-2023,Nottingham Forest FC,38,28.9585,0.7621
+England_Premier_League,2022-2023,Aston Villa FC,38,19.8002,0.5211
+England_Premier_League,2022-2023,West Ham United FC,38,23.7359,0.6246
+England_Premier_League,2022-2023,Fulham FC,38,24.2147,0.6372
+England_Premier_League,2023-2024,Arsenal FC,38,11.9896,0.3155
+England_Premier_League,2023-2024,Sheffield United FC,38,31.1512,0.8198
+England_Premier_League,2023-2024,Aston Villa FC,38,21.8682,0.5755
+England_Premier_League,2023-2024,Luton Town FC,38,33.3696,0.8781
+England_Premier_League,2023-2024,AFC Bournemouth,38,27.2843,0.718
+England_Premier_League,2023-2024,Burnley FC,38,29.8838,0.7864
+England_Premier_League,2023-2024,Brighton & Hove Albion FC,38,20.7663,0.5465
+England_Premier_League,2023-2024,Fulham FC,38,25.6585,0.6752
+England_Premier_League,2023-2024,Chelsea FC,38,24.5835,0.6469
+England_Premier_League,2023-2024,Brentford FC,38,27.7617,0.7306
+England_Premier_League,2023-2024,Crystal Palace FC,38,24.279,0.6389
+England_Premier_League,2023-2024,Tottenham Hotspur FC,38,21.2146,0.5583
+England_Premier_League,2023-2024,Liverpool FC,38,18.3155,0.482
+England_Premier_League,2023-2024,Nottingham Forest FC,38,26.1186,0.6873
+England_Premier_League,2023-2024,Manchester United FC,38,25.4027,0.6685
+England_Premier_League,2023-2024,Manchester City FC,38,12.4421,0.3274
+England_Premier_League,2023-2024,West Ham United FC,38,30.4153,0.8004
+England_Premier_League,2023-2024,Everton FC,38,24.6985,0.65
+England_Premier_League,2023-2024,Wolverhampton Wanderers FC,38,31.7017,0.8343
+England_Premier_League,2023-2024,Newcastle United FC,38,22.4342,0.5904
+England_Premier_League,2024-2025,AFC Bournemouth,38,23.4468,0.617
+England_Premier_League,2024-2025,Manchester City FC,38,17.4149,0.4583
+England_Premier_League,2024-2025,Fulham FC,38,18.7824,0.4943
+England_Premier_League,2024-2025,Brentford FC,38,28.5017,0.75
+England_Premier_League,2024-2025,Ipswich Town FC,38,32.0666,0.8439
+England_Premier_League,2024-2025,Leicester City FC,38,31.7975,0.8368
+England_Premier_League,2024-2025,Liverpool FC,38,15.8708,0.4177
+England_Premier_League,2024-2025,Brighton & Hove Albion FC,38,19.8145,0.5214
+England_Premier_League,2024-2025,Manchester United FC,38,18.5165,0.4873
+England_Premier_League,2024-2025,Chelsea FC,38,20.7097,0.545
+England_Premier_League,2024-2025,Newcastle United FC,38,19.4447,0.5117
+England_Premier_League,2024-2025,Arsenal FC,38,15.1812,0.3995
+England_Premier_League,2024-2025,Nottingham Forest FC,38,26.4232,0.6953
+England_Premier_League,2024-2025,West Ham United FC,38,26.724,0.7033
+England_Premier_League,2024-2025,Southampton FC,38,31.979,0.8416
+England_Premier_League,2024-2025,Everton FC,38,22.8811,0.6021
+England_Premier_League,2024-2025,Tottenham Hotspur FC,38,22.4215,0.59
+England_Premier_League,2024-2025,Aston Villa FC,38,22.7611,0.599
+England_Premier_League,2024-2025,Wolverhampton Wanderers FC,38,22.001,0.579
+England_Premier_League,2024-2025,Crystal Palace FC,38,21.0316,0.5535
+England_Premier_League,2025-2026,Brighton & Hove Albion FC,36,17.8504,0.4958
+England_Premier_League,2025-2026,Leeds United FC,36,22.4588,0.6239
+England_Premier_League,2025-2026,Burnley FC,36,30.3691,0.8436
+England_Premier_League,2025-2026,Arsenal FC,36,12.1424,0.3373
+England_Premier_League,2025-2026,Crystal Palace FC,36,20.6067,0.5724
+England_Premier_League,2025-2026,Brentford FC,36,22.6866,0.6302
+England_Premier_League,2025-2026,Fulham FC,36,21.5759,0.5993
+England_Premier_League,2025-2026,Wolverhampton Wanderers FC,36,26.7595,0.7433
+England_Premier_League,2025-2026,Liverpool FC,37,17.8552,0.4826
+England_Premier_League,2025-2026,Aston Villa FC,37,19.9072,0.538
+England_Premier_League,2025-2026,Manchester City FC,36,14.9639,0.4157
+England_Premier_League,2025-2026,AFC Bournemouth,36,21.6703,0.602
+England_Premier_League,2025-2026,Nottingham Forest FC,36,24.2919,0.6748
+England_Premier_League,2025-2026,Manchester United FC,36,21.3623,0.5934
+England_Premier_League,2025-2026,Tottenham Hotspur FC,36,23.7181,0.6588
+England_Premier_League,2025-2026,Chelsea FC,36,20.3105,0.5642
+England_Premier_League,2025-2026,Sunderland AFC,36,25.2629,0.7017
+England_Premier_League,2025-2026,Everton FC,36,25.06,0.6961
+England_Premier_League,2025-2026,West Ham United FC,36,26.5794,0.7383
+England_Premier_League,2025-2026,Newcastle United FC,36,21.0476,0.5847
+Spain_Primera_Division,2020-2021,Deportivo Alavés,38,24.5254,0.6454
+Spain_Primera_Division,2020-2021,Valencia CF,38,23.5271,0.6191
+Spain_Primera_Division,2020-2021,Athletic Club,38,21.3606,0.5621
+Spain_Primera_Division,2020-2021,Real Betis Balompié,38,20.2068,0.5318
+Spain_Primera_Division,2020-2021,Club Atlético de Madrid,38,19.5709,0.515
+Spain_Primera_Division,2020-2021,FC Barcelona,38,17.6362,0.4641
+Spain_Primera_Division,2020-2021,Cádiz CF,38,29.6459,0.7802
+Spain_Primera_Division,2020-2021,Real Sociedad de Fútbol,38,16.9973,0.4473
+Spain_Primera_Division,2020-2021,SD Eibar,38,20.0696,0.5281
+Spain_Primera_Division,2020-2021,Getafe CF,38,16.4814,0.4337
+Spain_Primera_Division,2020-2021,Granada CF,38,25.2193,0.6637
+Spain_Primera_Division,2020-2021,Real Valladolid CF,38,25.1967,0.6631
+Spain_Primera_Division,2020-2021,Levante UD,38,23.4416,0.6169
+Spain_Primera_Division,2020-2021,Elche CF,38,28.6366,0.7536
+Spain_Primera_Division,2020-2021,CA Osasuna,38,24.7797,0.6521
+Spain_Primera_Division,2020-2021,SD Huesca,38,23.9081,0.6292
+Spain_Primera_Division,2020-2021,Sevilla FC,38,15.9958,0.4209
+Spain_Primera_Division,2020-2021,Real Club Celta de Vigo,38,21.6314,0.5692
+Spain_Primera_Division,2020-2021,Villarreal CF,38,20.8786,0.5494
+Spain_Primera_Division,2020-2021,Real Madrid CF,38,19.5794,0.5152
+Spain_Primera_Division,2021-2022,Athletic Club,38,21.8063,0.5739
+Spain_Primera_Division,2021-2022,Villarreal CF,38,17.9436,0.4722
+Spain_Primera_Division,2021-2022,Club Atlético de Madrid,38,15.5667,0.4097
+Spain_Primera_Division,2021-2022,Real Sociedad de Fútbol,38,19.6745,0.5177
+Spain_Primera_Division,2021-2022,FC Barcelona,38,16.6713,0.4387
+Spain_Primera_Division,2021-2022,Real Madrid CF,38,20.5549,0.5409
+Spain_Primera_Division,2021-2022,Real Betis Balompié,38,20.8528,0.5488
+Spain_Primera_Division,2021-2022,Rayo Vallecano de Madrid,38,21.5929,0.5682
+Spain_Primera_Division,2021-2022,Cádiz CF,38,26.5393,0.6984
+Spain_Primera_Division,2021-2022,Deportivo Alavés,38,27.1208,0.7137
+Spain_Primera_Division,2021-2022,Elche CF,38,26.8284,0.706
+Spain_Primera_Division,2021-2022,Reial Club Deportiu Espanyol de Barcelona,38,27.309,0.7187
+Spain_Primera_Division,2021-2022,Getafe CF,38,19.6942,0.5183
+Spain_Primera_Division,2021-2022,Real Club Celta de Vigo,38,20.5004,0.5395
+Spain_Primera_Division,2021-2022,CA Osasuna,38,20.5231,0.5401
+Spain_Primera_Division,2021-2022,Granada CF,38,27.9916,0.7366
+Spain_Primera_Division,2021-2022,Sevilla FC,38,19.5218,0.5137
+Spain_Primera_Division,2021-2022,Levante UD,38,24.235,0.6378
+Spain_Primera_Division,2021-2022,Valencia CF,38,21.2121,0.5582
+Spain_Primera_Division,2021-2022,Real Club Deportivo Mallorca,38,25.0384,0.6589
+Spain_Primera_Division,2022-2023,UD Almería,38,29.9128,0.7872
+Spain_Primera_Division,2022-2023,Girona FC,38,23.2652,0.6122
+Spain_Primera_Division,2022-2023,Club Atlético de Madrid,38,22.2756,0.5862
+Spain_Primera_Division,2022-2023,Rayo Vallecano de Madrid,38,20.3622,0.5358
+Spain_Primera_Division,2022-2023,FC Barcelona,38,15.8796,0.4179
+Spain_Primera_Division,2022-2023,Villarreal CF,38,20.6624,0.5437
+Spain_Primera_Division,2022-2023,Cádiz CF,38,25.9812,0.6837
+Spain_Primera_Division,2022-2023,Real Betis Balompié,38,25.0418,0.659
+Spain_Primera_Division,2022-2023,Elche CF,38,28.3351,0.7457
+Spain_Primera_Division,2022-2023,Real Madrid CF,38,18.2286,0.4797
+Spain_Primera_Division,2022-2023,Getafe CF,38,22.1915,0.584
+Spain_Primera_Division,2022-2023,Athletic Club,38,18.9796,0.4995
+Spain_Primera_Division,2022-2023,CA Osasuna,38,22.1878,0.5839
+Spain_Primera_Division,2022-2023,Reial Club Deportiu Espanyol de Barcelona,38,26.4016,0.6948
+Spain_Primera_Division,2022-2023,Real Sociedad de Fútbol,38,18.1262,0.477
+Spain_Primera_Division,2022-2023,Real Club Deportivo Mallorca,38,25.171,0.6624
+Spain_Primera_Division,2022-2023,Sevilla FC,38,22.4598,0.591
+Spain_Primera_Division,2022-2023,Valencia CF,38,19.2564,0.5067
+Spain_Primera_Division,2022-2023,Real Valladolid CF,38,27.2038,0.7159
+Spain_Primera_Division,2022-2023,Real Club Celta de Vigo,38,19.7379,0.5194
+Spain_Primera_Division,2023-2024,FC Barcelona,38,19.8429,0.5222
+Spain_Primera_Division,2023-2024,Athletic Club,38,19.9583,0.5252
+Spain_Primera_Division,2023-2024,Real Club Celta de Vigo,38,25.2755,0.6651
+Spain_Primera_Division,2023-2024,Club Atlético de Madrid,38,21.3578,0.562
+Spain_Primera_Division,2023-2024,Getafe CF,38,23.1469,0.6091
+Spain_Primera_Division,2023-2024,Real Betis Balompié,38,23.1191,0.6084
+Spain_Primera_Division,2023-2024,Girona FC,38,25.7302,0.6771
+Spain_Primera_Division,2023-2024,UD Almería,38,31.4332,0.8272
+Spain_Primera_Division,2023-2024,UD Las Palmas,38,20.9864,0.5523
+Spain_Primera_Division,2023-2024,Rayo Vallecano de Madrid,38,22.1084,0.5818
+Spain_Primera_Division,2023-2024,CA Osasuna,38,22.9296,0.6034
+Spain_Primera_Division,2023-2024,Granada CF,38,24.1012,0.6342
+Spain_Primera_Division,2023-2024,Real Sociedad de Fútbol,38,17.5532,0.4619
+Spain_Primera_Division,2023-2024,Real Club Deportivo Mallorca,38,22.2554,0.5857
+Spain_Primera_Division,2023-2024,Sevilla FC,38,26.4091,0.695
+Spain_Primera_Division,2023-2024,Real Madrid CF,38,18.911,0.4977
+Spain_Primera_Division,2023-2024,Valencia CF,38,25.197,0.6631
+Spain_Primera_Division,2023-2024,Cádiz CF,38,25.9272,0.6823
+Spain_Primera_Division,2023-2024,Villarreal CF,38,29.7042,0.7817
+Spain_Primera_Division,2023-2024,Deportivo Alavés,38,21.7844,0.5733
+Spain_Primera_Division,2024-2025,Deportivo Alavés,38,22.0058,0.5791
+Spain_Primera_Division,2024-2025,Real Valladolid CF,38,27.8092,0.7318
+Spain_Primera_Division,2024-2025,Real Club Celta de Vigo,48,25.9042,0.5397
+LaLiga,2024-2025,Espanyol,21,15.2828,0.7278
+Spain_Primera_Division,2024-2025,Club Atlético de Madrid,61,35.0569,0.5747
+Spain_Primera_Division,2024-2025,CD Leganés,38,26.0468,0.6854
+Spain_Primera_Division,2024-2025,FC Barcelona,38,14.6802,0.3863
+Spain_Primera_Division,2024-2025,Sevilla FC,38,19.0339,0.5009
+Spain_Primera_Division,2024-2025,Real Madrid CF,38,17.9583,0.4726
+Spain_Primera_Division,2024-2025,Girona FC,38,20.6935,0.5446
+Spain_Primera_Division,2024-2025,Real Sociedad de Fútbol,55,30.4162,0.553
+Spain_Primera_Division,2024-2025,Real Club Deportivo Mallorca,38,24.5968,0.6473
+Spain_Primera_Division,2024-2025,CA Osasuna,38,27.9066,0.7344
+Spain_Primera_Division,2024-2025,Real Betis Balompié,38,21.9937,0.5788
+Spain_Primera_Division,2024-2025,Valencia CF,38,24.0085,0.6318
+Spain_Primera_Division,2024-2025,UD Las Palmas,38,25.7974,0.6789
+Spain_Primera_Division,2024-2025,Villarreal CF,38,21.4656,0.5649
+Spain_Primera_Division,2024-2025,Getafe CF,38,19.231,0.5061
+LaLiga,2024-2025,Athletic Club,28,11.7247,0.4187
+LaLiga,2024-2025,Rayo Vallecano,15,8.9789,0.5986
+Spain_Primera_Division,2025-2026,Athletic Club,36,16.154,0.4487
+Spain_Primera_Division,2025-2026,Getafe CF,36,22.3539,0.6209
+Spain_Primera_Division,2025-2026,Real Betis Balompié,36,20.3398,0.565
+Spain_Primera_Division,2025-2026,Club Atlético de Madrid,36,19.6079,0.5447
+Spain_Primera_Division,2025-2026,Reial Club Deportiu Espanyol de Barcelona,36,22.0012,0.6111
+Spain_Primera_Division,2025-2026,Elche CF,36,20.3719,0.5659
+Spain_Primera_Division,2025-2026,Girona FC,36,26.726,0.7424
+Spain_Primera_Division,2025-2026,Real Oviedo,36,25.2999,0.7028
+Spain_Primera_Division,2025-2026,Real Club Deportivo Mallorca,36,25.0117,0.6948
+Spain_Primera_Division,2025-2026,Levante UD,36,27.4037,0.7612
+Spain_Primera_Division,2025-2026,CA Osasuna,36,22.5594,0.6267
+Spain_Primera_Division,2025-2026,Real Club Celta de Vigo,36,24.4863,0.6802
+Spain_Primera_Division,2025-2026,Rayo Vallecano de Madrid,36,19.2416,0.5345
+Spain_Primera_Division,2025-2026,Deportivo Alavés,36,23.2499,0.6458
+Spain_Primera_Division,2025-2026,Real Madrid CF,36,18.0677,0.5019
+Spain_Primera_Division,2025-2026,FC Barcelona,36,13.9103,0.3864
+Spain_Primera_Division,2025-2026,Real Sociedad de Fútbol,36,23.1963,0.6443
+Spain_Primera_Division,2025-2026,Sevilla FC,36,20.1881,0.5608
+Spain_Primera_Division,2025-2026,Valencia CF,36,19.9871,0.5552
+Spain_Primera_Division,2025-2026,Villarreal CF,36,23.9887,0.6664
+France_Ligue_1,2020-2021,FC Girondins de Bordeaux,38,23.53,0.6192
+France_Ligue_1,2020-2021,Montpellier HSC,38,27.383,0.7206
+France_Ligue_1,2020-2021,Stade Brestois 29,38,24.4678,0.6439
+France_Ligue_1,2020-2021,Lille OSC,38,14.4194,0.3795
+France_Ligue_1,2020-2021,Racing Club de Lens,38,17.1496,0.4513
+France_Ligue_1,2020-2021,Stade de Reims,38,24.409,0.6423
+France_Ligue_1,2020-2021,FC Lorient,38,21.8167,0.5741
+France_Ligue_1,2020-2021,FC Nantes,38,24.6127,0.6477
+France_Ligue_1,2020-2021,Olympique Lyonnais,38,16.8401,0.4432
+France_Ligue_1,2020-2021,AS Saint-Étienne,38,20.6615,0.5437
+France_Ligue_1,2020-2021,FC Metz,38,21.7325,0.5719
+France_Ligue_1,2020-2021,Dijon FCO,38,27.8951,0.7341
+France_Ligue_1,2020-2021,OGC Nice Côte d'Azur,38,21.3012,0.5606
+France_Ligue_1,2020-2021,AS Monaco FC,38,16.19,0.4261
+France_Ligue_1,2020-2021,Nîmes Olympique,38,28.2855,0.7444
+France_Ligue_1,2020-2021,Angers Sporting Club de l'Ouest,38,20.9006,0.55
+France_Ligue_1,2020-2021,Paris Saint-Germain FC,38,15.6699,0.4124
+France_Ligue_1,2020-2021,Stade Rennais FC,38,15.4524,0.4066
+France_Ligue_1,2020-2021,RC Strasbourg Alsace,38,22.5021,0.5922
+France_Ligue_1,2020-2021,Olympique de Marseille,38,20.5807,0.5416
+France_Ligue_1,2021-2022,FC Girondins de Bordeaux,38,23.9567,0.6304
+France_Ligue_1,2021-2022,FC Nantes,38,24.5931,0.6472
+France_Ligue_1,2021-2022,Stade Brestois 29,38,27.3797,0.7205
+France_Ligue_1,2021-2022,Stade de Reims,38,23.3809,0.6153
+France_Ligue_1,2021-2022,Clermont Foot 63,38,21.6457,0.5696
+France_Ligue_1,2021-2022,Lille OSC,38,19.0558,0.5015
+France_Ligue_1,2021-2022,Olympique Lyonnais,38,19.9318,0.5245
+France_Ligue_1,2021-2022,AS Monaco FC,38,18.1345,0.4772
+France_Ligue_1,2021-2022,Olympique de Marseille,38,16.8998,0.4447
+France_Ligue_1,2021-2022,FC Lorient,38,24.0092,0.6318
+France_Ligue_1,2021-2022,FC Metz,38,29.4074,0.7739
+France_Ligue_1,2021-2022,Stade Rennais FC,38,18.2875,0.4812
+France_Ligue_1,2021-2022,Montpellier HSC,38,27.2162,0.7162
+France_Ligue_1,2021-2022,Racing Club de Lens,38,19.9157,0.5241
+France_Ligue_1,2021-2022,Paris Saint-Germain FC,38,16.4316,0.4324
+France_Ligue_1,2021-2022,Angers Sporting Club de l'Ouest,38,22.315,0.5872
+France_Ligue_1,2021-2022,RC Strasbourg Alsace,38,19.156,0.5041
+France_Ligue_1,2021-2022,AS Saint-Étienne,38,23.628,0.6218
+France_Ligue_1,2021-2022,Espérance Sportive Troyes Aube Champagne,38,26.4683,0.6965
+France_Ligue_1,2021-2022,OGC Nice Côte d'Azur,38,20.0804,0.5284
+France_Ligue_1,2022-2023,Angers Sporting Club de l'Ouest,38,24.3795,0.6416
+France_Ligue_1,2022-2023,RC Strasbourg Alsace,38,22.1704,0.5834
+France_Ligue_1,2022-2023,Stade Brestois 29,38,28.271,0.744
+France_Ligue_1,2022-2023,FC Lorient,38,32.7924,0.863
+France_Ligue_1,2022-2023,Clermont Foot 63,38,23.4102,0.6161
+France_Ligue_1,2022-2023,Association Jeunesse Auxerroise,38,26.6321,0.7008
+France_Ligue_1,2022-2023,Lille OSC,38,15.7894,0.4155
+France_Ligue_1,2022-2023,Racing Club de Lens,38,18.9824,0.4995
+France_Ligue_1,2022-2023,Olympique Lyonnais,38,18.6913,0.4919
+France_Ligue_1,2022-2023,Toulouse FC,38,26.5135,0.6977
+France_Ligue_1,2022-2023,Olympique de Marseille,38,19.7057,0.5186
+France_Ligue_1,2022-2023,AC Ajaccio,38,24.0315,0.6324
+France_Ligue_1,2022-2023,Montpellier HSC,38,24.8993,0.6552
+France_Ligue_1,2022-2023,AS Monaco FC,38,22.5584,0.5936
+France_Ligue_1,2022-2023,OGC Nice Côte d'Azur,38,21.7063,0.5712
+France_Ligue_1,2022-2023,Espérance Sportive Troyes Aube Champagne,38,35.1293,0.9245
+France_Ligue_1,2022-2023,Stade de Reims,38,26.0098,0.6845
+France_Ligue_1,2022-2023,Paris Saint-Germain FC,38,19.2587,0.5068
+France_Ligue_1,2022-2023,Stade Rennais FC,38,19.4666,0.5123
+France_Ligue_1,2022-2023,FC Nantes,38,24.4545,0.6435
+France_Ligue_1,2023-2024,Stade Brestois 29,34,18.2388,0.5364
+France_Ligue_1,2023-2024,Paris Saint-Germain FC,34,14.0212,0.4124
+France_Ligue_1,2023-2024,Clermont Foot 63,34,29.4056,0.8649
+France_Ligue_1,2023-2024,OGC Nice Côte d'Azur,34,16.4315,0.4833
+France_Ligue_1,2023-2024,Racing Club de Lens,34,16.6152,0.4887
+France_Ligue_1,2023-2024,FC Nantes,34,23.4167,0.6887
+France_Ligue_1,2023-2024,Lille OSC,34,15.6967,0.4617
+France_Ligue_1,2023-2024,AS Monaco FC,34,17.5634,0.5166
+France_Ligue_1,2023-2024,Olympique de Marseille,34,15.5667,0.4578
+France_Ligue_1,2023-2024,Olympique Lyonnais,34,19.3362,0.5687
+France_Ligue_1,2023-2024,FC Metz,34,27.7658,0.8166
+France_Ligue_1,2023-2024,Le Havre AC,34,22.4865,0.6614
+France_Ligue_1,2023-2024,Montpellier HSC,34,23.6834,0.6966
+France_Ligue_1,2023-2024,Toulouse FC,34,18.4727,0.5433
+France_Ligue_1,2023-2024,Stade de Reims,34,22.6654,0.6666
+France_Ligue_1,2023-2024,FC Lorient,34,25.9209,0.7624
+France_Ligue_1,2023-2024,Stade Rennais FC,34,19.0145,0.5592
+France_Ligue_1,2023-2024,RC Strasbourg Alsace,34,20.4218,0.6006
+France_Ligue_1,2024-2025,Association Jeunesse Auxerroise,34,25.5349,0.751
+France_Ligue_1,2024-2025,Stade Rennais FC,34,19.0015,0.5589
+France_Ligue_1,2024-2025,Stade Brestois 29,34,22.059,0.6488
+France_Ligue_1,2024-2025,OGC Nice Côte d'Azur,34,19.1442,0.5631
+France_Ligue_1,2024-2025,Le Havre AC,34,23.8557,0.7016
+France_Ligue_1,2024-2025,Montpellier HSC,34,24.5234,0.7213
+France_Ligue_1,2024-2025,Lille OSC,34,16.5123,0.4857
+France_Ligue_1,2024-2025,Olympique Lyonnais,34,16.8268,0.4949
+France_Ligue_1,2024-2025,AS Monaco FC,34,15.5773,0.4582
+France_Ligue_1,2024-2025,Angers Sporting Club de l'Ouest,34,24.518,0.7211
+France_Ligue_1,2024-2025,FC Nantes,34,25.2188,0.7417
+France_Ligue_1,2024-2025,Olympique de Marseille,34,13.3834,0.3936
+France_Ligue_1,2024-2025,Paris Saint-Germain FC,34,12.4526,0.3663
+France_Ligue_1,2024-2025,Racing Club de Lens,34,18.8769,0.5552
+France_Ligue_1,2024-2025,AS Saint-Étienne,34,25.7339,0.7569
+France_Ligue_1,2024-2025,RC Strasbourg Alsace,34,24.4736,0.7198
+France_Ligue_1,2024-2025,Toulouse FC,34,18.949,0.5573
+France_Ligue_1,2024-2025,Stade de Reims,34,24.3983,0.7176
+France_Ligue_1,2025-2026,Le Havre AC,33,22.7997,0.6909
+France_Ligue_1,2025-2026,Stade Brestois 29,33,22.6259,0.6856
+France_Ligue_1,2025-2026,FC Lorient,33,20.5591,0.623
+France_Ligue_1,2025-2026,Paris Saint-Germain FC,33,12.8535,0.3895
+France_Ligue_1,2025-2026,Olympique de Marseille,33,15.5335,0.4707
+France_Ligue_1,2025-2026,Angers Sporting Club de l'Ouest,33,22.5336,0.6828
+France_Ligue_1,2025-2026,FC Metz,33,24.0722,0.7295
+France_Ligue_1,2025-2026,Racing Club de Lens,33,17.3112,0.5246
+France_Ligue_1,2025-2026,FC Nantes,33,22.3148,0.6762
+France_Ligue_1,2025-2026,AS Monaco FC,33,18.4976,0.5605
+France_Ligue_1,2025-2026,OGC Nice Côte d'Azur,33,22.9119,0.6943
+France_Ligue_1,2025-2026,Lille OSC,33,13.0641,0.3959
+France_Ligue_1,2025-2026,Paris FC,33,20.02,0.6067
+France_Ligue_1,2025-2026,Olympique Lyonnais,33,17.4779,0.5296
+France_Ligue_1,2025-2026,RC Strasbourg Alsace,33,17.9696,0.5445
+France_Ligue_1,2025-2026,Association Jeunesse Auxerroise,33,20.4749,0.6205
+France_Ligue_1,2025-2026,Toulouse FC,33,19.6385,0.5951
+France_Ligue_1,2025-2026,Stade Rennais FC,33,18.8425,0.571
+Portugal_Primeira_Liga,2020-2021,Sporting Braga,34,14.0156,0.4122
+Portugal_Primeira_Liga,2020-2021,Rio Ave FC,34,15.7013,0.4618
+Portugal_Primeira_Liga,2020-2021,Gil Vicente FC,34,16.7567,0.4928
+Portugal_Primeira_Liga,2020-2021,SL Benfica,34,9.4231,0.2771
+Portugal_Primeira_Liga,2020-2021,CS Marítimo Funchal,34,22.1092,0.6503
+Portugal_Primeira_Liga,2020-2021,Os Belenenses SAD,34,19.2726,0.5668
+Portugal_Primeira_Liga,2020-2021,FC Paços de Ferreira,34,20.8302,0.6127
+Portugal_Primeira_Liga,2020-2021,Boavista FC,34,21.8091,0.6414
+Portugal_Primeira_Liga,2020-2021,Portimonense SC,34,17.4296,0.5126
+Portugal_Primeira_Liga,2020-2021,FC Famalicão,34,17.5637,0.5166
+Portugal_Primeira_Liga,2020-2021,FC Porto,34,11.5778,0.3405
+Portugal_Primeira_Liga,2020-2021,CD Nacional,34,20.0912,0.5909
+Portugal_Primeira_Liga,2020-2021,CD Santa Clara,34,18.5859,0.5466
+Portugal_Primeira_Liga,2020-2021,Vitória SC Guimarães,34,19.1709,0.5638
+Portugal_Primeira_Liga,2020-2021,Sporting Clube de Portugal,34,10.5305,0.3097
+Portugal_Primeira_Liga,2020-2021,SC Farense,34,21.1773,0.6229
+Portugal_Primeira_Liga,2020-2021,CD Tondela,34,23.4935,0.691
+Portugal_Primeira_Liga,2020-2021,Moreirense FC,34,20.778,0.6111
+Portugal_Primeira_Liga,2021-2022,FC Arouca,34,18.2143,0.5357
+Portugal_Primeira_Liga,2021-2022,CD Tondela,34,23.7325,0.698
+Portugal_Primeira_Liga,2021-2022,Os Belenenses SAD,34,25.0186,0.7358
+Portugal_Primeira_Liga,2021-2022,CD Santa Clara,34,19.994,0.5881
+Portugal_Primeira_Liga,2021-2022,Sporting Braga,34,13.4705,0.3962
+Portugal_Primeira_Liga,2021-2022,Portimonense SC,34,21.6428,0.6366
+Portugal_Primeira_Liga,2021-2022,GD Estoril Praia,34,21.8324,0.6421
+Portugal_Primeira_Liga,2021-2022,SL Benfica,34,13.4838,0.3966
+Portugal_Primeira_Liga,2021-2022,FC Famalicão,34,15.7001,0.4618
+Portugal_Primeira_Liga,2021-2022,FC Vizela,34,22.234,0.6539
+Portugal_Primeira_Liga,2021-2022,CS Marítimo Funchal,34,22.4487,0.6603
+Portugal_Primeira_Liga,2021-2022,Gil Vicente FC,34,17.8299,0.5244
+Portugal_Primeira_Liga,2021-2022,Moreirense FC,34,17.2693,0.5079
+Portugal_Primeira_Liga,2021-2022,FC Paços de Ferreira,34,21.1132,0.621
+Portugal_Primeira_Liga,2021-2022,FC Porto,34,9.3111,0.2739
+Portugal_Primeira_Liga,2021-2022,Boavista FC,34,19.5799,0.5759
+Portugal_Primeira_Liga,2021-2022,Sporting Clube de Portugal,34,9.8037,0.2883
+Portugal_Primeira_Liga,2021-2022,Vitória SC Guimarães,34,17.5328,0.5157
+Portugal_Primeira_Liga,2022-2023,GD Chaves,34,26.4773,0.7787
+Portugal_Primeira_Liga,2022-2023,Gil Vicente FC,34,22.7313,0.6686
+Portugal_Primeira_Liga,2022-2023,GD Estoril Praia,34,23.4148,0.6887
+Portugal_Primeira_Liga,2022-2023,Sporting Braga,34,17.5234,0.5154
+Portugal_Primeira_Liga,2022-2023,FC Famalicão,34,22.7479,0.6691
+Portugal_Primeira_Liga,2022-2023,FC Paços de Ferreira,34,23.886,0.7025
+Portugal_Primeira_Liga,2022-2023,CS Marítimo Funchal,34,21.9477,0.6455
+Portugal_Primeira_Liga,2022-2023,FC Arouca,34,24.5864,0.7231
+Portugal_Primeira_Liga,2022-2023,FC Porto,34,13.1161,0.3858
+Portugal_Primeira_Liga,2022-2023,SL Benfica,34,10.6163,0.3122
+Portugal_Primeira_Liga,2022-2023,Rio Ave FC,34,23.4416,0.6895
+Portugal_Primeira_Liga,2022-2023,Portimonense SC,34,23.211,0.6827
+Portugal_Primeira_Liga,2022-2023,Sporting Clube de Portugal,34,10.9096,0.3209
+Portugal_Primeira_Liga,2022-2023,Casa Pia AC,34,23.1167,0.6799
+Portugal_Primeira_Liga,2022-2023,Vitória SC Guimarães,34,19.0947,0.5616
+Portugal_Primeira_Liga,2022-2023,Boavista FC,34,21.7088,0.6385
+Portugal_Primeira_Liga,2022-2023,FC Vizela,34,21.8649,0.6431
+Portugal_Primeira_Liga,2022-2023,CD Santa Clara,34,21.2988,0.6264
+Portugal_Primeira_Liga,2023-2024,Sporting Braga,34,17.5271,0.5155
+Portugal_Primeira_Liga,2023-2024,Portimonense SC,34,26.4527,0.778
+Portugal_Primeira_Liga,2023-2024,Casa Pia AC,34,23.2498,0.6838
+Portugal_Primeira_Liga,2023-2024,FC Vizela,34,24.4038,0.7178
+Portugal_Primeira_Liga,2023-2024,GD Chaves,34,25.1354,0.7393
+Portugal_Primeira_Liga,2023-2024,SL Benfica,34,15.692,0.4615
+Portugal_Primeira_Liga,2023-2024,FC Famalicão,34,18.8323,0.5539
+Portugal_Primeira_Liga,2023-2024,Gil Vicente FC,34,22.1976,0.6529
+Portugal_Primeira_Liga,2023-2024,SC Farense,34,27.9257,0.8213
+Portugal_Primeira_Liga,2023-2024,FC Arouca,34,20.1499,0.5926
+Portugal_Primeira_Liga,2023-2024,Moreirense FC,34,18.3213,0.5389
+Portugal_Primeira_Liga,2023-2024,Vitória SC Guimarães,34,16.5828,0.4877
+Portugal_Primeira_Liga,2023-2024,FC Porto,34,12.2221,0.3595
+Portugal_Primeira_Liga,2023-2024,GD Estoril Praia,34,23.81,0.7003
+Portugal_Primeira_Liga,2023-2024,Rio Ave FC,34,20.1965,0.594
+Portugal_Primeira_Liga,2023-2024,Boavista FC,34,22.9789,0.6759
+Portugal_Primeira_Liga,2023-2024,Sporting Clube de Portugal,34,11.9788,0.3523
+Portugal_Primeira_Liga,2023-2024,Club Foot Estrela,34,21.9103,0.6444
+Portugal_Primeira_Liga,2024-2025,AVS Futebol,34,23.7259,0.6978
+Portugal_Primeira_Liga,2024-2025,FC Famalicão,34,16.6897,0.4909
+Portugal_Primeira_Liga,2024-2025,FC Arouca,34,18.8663,0.5549
+Portugal_Primeira_Liga,2024-2025,Sporting Braga,34,14.0012,0.4118
+Portugal_Primeira_Liga,2024-2025,SC Farense,34,19.6255,0.5772
+Portugal_Primeira_Liga,2024-2025,SL Benfica,34,12.5685,0.3697
+Portugal_Primeira_Liga,2024-2025,Gil Vicente FC,34,19.2469,0.5661
+Portugal_Primeira_Liga,2024-2025,Boavista FC,34,25.4872,0.7496
+Portugal_Primeira_Liga,2024-2025,CD Nacional,34,21.6991,0.6382
+Portugal_Primeira_Liga,2024-2025,CD Santa Clara,34,16.7701,0.4932
+Portugal_Primeira_Liga,2024-2025,FC Porto,34,11.7095,0.3444
+Portugal_Primeira_Liga,2024-2025,GD Estoril Praia,34,21.0429,0.6189
+Portugal_Primeira_Liga,2024-2025,Rio Ave FC,34,23.7862,0.6996
+Portugal_Primeira_Liga,2024-2025,Casa Pia AC,34,20.2508,0.5956
+Portugal_Primeira_Liga,2024-2025,Sporting Clube de Portugal,34,11.8097,0.3473
+Portugal_Primeira_Liga,2024-2025,Club Foot Estrela,34,20.5877,0.6055
+Portugal_Primeira_Liga,2024-2025,Vitória SC Guimarães,34,13.9949,0.4116
+Portugal_Primeira_Liga,2024-2025,Moreirense FC,34,19.9665,0.5872
+Portugal_Primeira_Liga,2025-2026,AVS Futebol,34,29.5674,0.8696
+Portugal_Primeira_Liga,2025-2026,CD Tondela,34,20.3819,0.5995
+Portugal_Primeira_Liga,2025-2026,FC Arouca,34,20.0478,0.5896
+Portugal_Primeira_Liga,2025-2026,Moreirense FC,34,20.4214,0.6006
+Portugal_Primeira_Liga,2025-2026,Casa Pia AC,34,20.1925,0.5939
+Portugal_Primeira_Liga,2025-2026,Club Foot Estrela,34,22.4893,0.6615
+Portugal_Primeira_Liga,2025-2026,Gil Vicente FC,34,16.1419,0.4748
+Portugal_Primeira_Liga,2025-2026,CD Santa Clara,34,17.9937,0.5292
+Portugal_Primeira_Liga,2025-2026,CD Nacional,34,22.1804,0.6524
+Portugal_Primeira_Liga,2025-2026,FC Famalicão,34,14.9012,0.4383
+Portugal_Primeira_Liga,2025-2026,FC Porto,34,10.9647,0.3225
+Portugal_Primeira_Liga,2025-2026,Sporting Braga,34,13.0226,0.383
+Portugal_Primeira_Liga,2025-2026,Rio Ave FC,34,24.1341,0.7098
+Portugal_Primeira_Liga,2025-2026,GD Estoril Praia,34,21.7634,0.6401
+Portugal_Primeira_Liga,2025-2026,Sporting Clube de Portugal,34,12.1249,0.3566
+Portugal_Primeira_Liga,2025-2026,FC Alverca,34,21.0491,0.6191
+Portugal_Primeira_Liga,2025-2026,Vitória SC Guimarães,34,16.2217,0.4771
+Portugal_Primeira_Liga,2025-2026,SL Benfica,34,12.0837,0.3554
+Italy_Serie_A,2020-2021,FC Crotone,38,26.958,0.7094
+Italy_Serie_A,2020-2021,SSC Napoli,38,19.4444,0.5117
+Italy_Serie_A,2020-2021,ACF Fiorentina,38,25.1809,0.6627
+Italy_Serie_A,2020-2021,Genoa CFC,38,27.9403,0.7353
+Italy_Serie_A,2020-2021,FC Internazionale Milano,38,18.9637,0.499
+Italy_Serie_A,2020-2021,Bologna FC 1909,38,25.4618,0.67
+Italy_Serie_A,2020-2021,Juventus FC,38,19.0401,0.5011
+Italy_Serie_A,2020-2021,Torino FC,38,27.1434,0.7143
+Italy_Serie_A,2020-2021,Parma Calcio 1913,38,27.5006,0.7237
+Italy_Serie_A,2020-2021,Benevento Calcio,38,28.5534,0.7514
+Italy_Serie_A,2020-2021,AS Roma,38,20.7274,0.5455
+Italy_Serie_A,2020-2021,US Sassuolo Calcio,38,26.0125,0.6845
+Italy_Serie_A,2020-2021,UC Sampdoria,38,26.4432,0.6959
+Italy_Serie_A,2020-2021,AC Milan,38,22.2588,0.5858
+Italy_Serie_A,2020-2021,Spezia Calcio,38,25.4094,0.6687
+Italy_Serie_A,2020-2021,SS Lazio,38,19.3248,0.5085
+Italy_Serie_A,2020-2021,Udinese Calcio,38,24.0214,0.6321
+Italy_Serie_A,2020-2021,Atalanta Bergamasca Calcio,38,15.9137,0.4188
+Italy_Serie_A,2020-2021,Hellas Verona FC,38,24.3609,0.6411
+Italy_Serie_A,2020-2021,Cagliari Calcio,38,29.4107,0.774
+Italy_Serie_A,2021-2022,Cagliari Calcio,38,29.4698,0.7755
+Italy_Serie_A,2021-2022,AS Roma,38,18.024,0.4743
+Italy_Serie_A,2021-2022,Empoli FC,38,31.0713,0.8177
+Italy_Serie_A,2021-2022,FC Internazionale Milano,38,19.2118,0.5056
+Italy_Serie_A,2021-2022,Juventus FC,38,20.5421,0.5406
+Italy_Serie_A,2021-2022,US Sassuolo Calcio,38,30.5731,0.8046
+Italy_Serie_A,2021-2022,SS Lazio,38,21.7044,0.5712
+Italy_Serie_A,2021-2022,ACF Fiorentina,38,16.9724,0.4466
+Italy_Serie_A,2021-2022,AC Milan,38,18.2075,0.4791
+Italy_Serie_A,2021-2022,Torino FC,38,18.2715,0.4808
+Italy_Serie_A,2021-2022,SSC Napoli,38,18.4765,0.4862
+Italy_Serie_A,2021-2022,Bologna FC 1909,38,25.1781,0.6626
+Italy_Serie_A,2021-2022,UC Sampdoria,38,26.7555,0.7041
+Italy_Serie_A,2021-2022,Atalanta Bergamasca Calcio,38,19.9254,0.5244
+Italy_Serie_A,2021-2022,Spezia Calcio,38,29.3913,0.7735
+Italy_Serie_A,2021-2022,Genoa CFC,38,27.2311,0.7166
+Italy_Serie_A,2021-2022,Udinese Calcio,38,22.9011,0.6027
+Italy_Serie_A,2021-2022,Hellas Verona FC,38,23.2185,0.611
+Italy_Serie_A,2021-2022,Venezia FC,38,31.067,0.8176
+Italy_Serie_A,2021-2022,US Salernitana 1919,38,29.9156,0.7873
+Italy_Serie_A,2022-2023,Atalanta Bergamasca Calcio,38,19.8622,0.5227
+Italy_Serie_A,2022-2023,US Sassuolo Calcio,38,25.2589,0.6647
+Italy_Serie_A,2022-2023,Empoli FC,38,30.1459,0.7933
+Italy_Serie_A,2022-2023,AC Monza,38,24.0473,0.6328
+Italy_Serie_A,2022-2023,FC Internazionale Milano,38,20.4162,0.5373
+Italy_Serie_A,2022-2023,US Salernitana 1919,38,28.3903,0.7471
+Italy_Serie_A,2022-2023,SS Lazio,38,21.3882,0.5628
+Italy_Serie_A,2022-2023,Udinese Calcio,38,22.9806,0.6048
+Italy_Serie_A,2022-2023,US Lecce,38,24.2525,0.6382
+Italy_Serie_A,2022-2023,ACF Fiorentina,38,19.2159,0.5057
+Italy_Serie_A,2022-2023,SSC Napoli,38,19.4132,0.5109
+Italy_Serie_A,2022-2023,Bologna FC 1909,38,22.454,0.5909
+Italy_Serie_A,2022-2023,UC Sampdoria,38,30.1321,0.793
+Italy_Serie_A,2022-2023,AS Roma,38,17.1117,0.4503
+Italy_Serie_A,2022-2023,Spezia Calcio,39,26.8492,0.6884
+Italy_Serie_A,2022-2023,US Cremonese,38,30.3674,0.7991
+Italy_Serie_A,2022-2023,Torino FC,38,19.9682,0.5255
+Italy_Serie_A,2022-2023,Juventus FC,38,21.2611,0.5595
+Italy_Serie_A,2022-2023,Hellas Verona FC,39,26.7659,0.6863
+Italy_Serie_A,2022-2023,AC Milan,38,18.5749,0.4888
+Italy_Serie_A,2023-2024,Cagliari Calcio,38,27.8331,0.7325
+Italy_Serie_A,2023-2024,Frosinone Calcio,38,24.0682,0.6334
+Italy_Serie_A,2023-2024,Empoli FC,38,27.4191,0.7216
+Italy_Serie_A,2023-2024,Atalanta Bergamasca Calcio,38,18.6898,0.4918
+Italy_Serie_A,2023-2024,Genoa CFC,38,23.5823,0.6206
+Italy_Serie_A,2023-2024,US Salernitana 1919,38,29.1714,0.7677
+Italy_Serie_A,2023-2024,FC Internazionale Milano,38,17.5507,0.4619
+Italy_Serie_A,2023-2024,AS Roma,38,20.8814,0.5495
+Italy_Serie_A,2023-2024,Juventus FC,38,19.0968,0.5025
+Italy_Serie_A,2023-2024,Hellas Verona FC,38,22.798,0.5999
+Italy_Serie_A,2023-2024,SS Lazio,38,19.4635,0.5122
+Italy_Serie_A,2023-2024,ACF Fiorentina,38,19.9332,0.5246
+Italy_Serie_A,2023-2024,US Lecce,38,27.1594,0.7147
+Italy_Serie_A,2023-2024,Torino FC,38,20.6771,0.5441
+Italy_Serie_A,2023-2024,AC Monza,38,24.3653,0.6412
+Italy_Serie_A,2023-2024,Udinese Calcio,38,27.1557,0.7146
+Italy_Serie_A,2023-2024,SSC Napoli,38,19.0372,0.501
+Italy_Serie_A,2023-2024,AC Milan,38,19.8175,0.5215
+Italy_Serie_A,2023-2024,US Sassuolo Calcio,38,27.3968,0.721
+Italy_Serie_A,2023-2024,Bologna FC 1909,38,18.8766,0.4968
+Italy_Serie_A,2024-2025,Atalanta Bergamasca Calcio,38,18.8361,0.4957
+Italy_Serie_A,2024-2025,AC Monza,38,25.6952,0.6762
+Italy_Serie_A,2024-2025,Cagliari Calcio,38,25.4597,0.67
+Italy_Serie_A,2024-2025,Bologna FC 1909,38,13.4936,0.3551
+Italy_Serie_A,2024-2025,Calcio Como 1907,38,19.0807,0.5021
+Italy_Serie_A,2024-2025,SS Lazio,38,20.253,0.533
+Italy_Serie_A,2024-2025,Empoli FC,38,24.0636,0.6333
+Italy_Serie_A,2024-2025,FC Internazionale Milano,38,17.2951,0.4551
+Italy_Serie_A,2024-2025,Genoa CFC,38,24.0172,0.632
+Italy_Serie_A,2024-2025,ACF Fiorentina,38,22.0817,0.5811
+Italy_Serie_A,2024-2025,Juventus FC,38,17.7197,0.4663
+Italy_Serie_A,2024-2025,Parma Calcio 1913,38,27.9936,0.7367
+Italy_Serie_A,2024-2025,US Lecce,38,28.5382,0.751
+Italy_Serie_A,2024-2025,Hellas Verona FC,38,22.4744,0.5914
+Italy_Serie_A,2024-2025,AC Milan,38,20.1604,0.5305
+Italy_Serie_A,2024-2025,SSC Napoli,38,15.5268,0.4086
+Italy_Serie_A,2024-2025,AS Roma,38,20.1475,0.5302
+Italy_Serie_A,2024-2025,Torino FC,38,24.7468,0.6512
+Italy_Serie_A,2024-2025,Venezia FC,38,24.197,0.6368
+Italy_Serie_A,2024-2025,Udinese Calcio,38,21.0008,0.5527
+Italy_Serie_A,2025-2026,US Cremonese,36,25.3786,0.705
+Italy_Serie_A,2025-2026,Juventus FC,37,16.2308,0.4387
+Italy_Serie_A,2025-2026,ACF Fiorentina,37,23.8099,0.6435
+Italy_Serie_A,2025-2026,US Lecce,36,22.7838,0.6329
+Italy_Serie_A,2025-2026,SS Lazio,37,22.9607,0.6206
+Italy_Serie_A,2025-2026,Cagliari Calcio,36,23.3257,0.6479
+Italy_Serie_A,2025-2026,AC Milan,37,21.4637,0.5801
+Italy_Serie_A,2025-2026,AS Roma,37,15.3731,0.4155
+Italy_Serie_A,2025-2026,SSC Napoli,37,17.4395,0.4713
+Italy_Serie_A,2025-2026,Calcio Como 1907,37,13.7391,0.3713
+Italy_Serie_A,2025-2026,Parma Calcio 1913,37,29.7342,0.8036
+Italy_Serie_A,2025-2026,Bologna FC 1909,36,15.4738,0.4298
+Italy_Serie_A,2025-2026,US Sassuolo Calcio,36,24.326,0.6757
+Italy_Serie_A,2025-2026,Genoa CFC,37,23.969,0.6478
+Italy_Serie_A,2025-2026,Torino FC,36,25.7663,0.7157
+Italy_Serie_A,2025-2026,Pisa Sporting Club,37,27.1467,0.7337
+Italy_Serie_A,2025-2026,Udinese Calcio,36,20.3771,0.566
+Italy_Serie_A,2025-2026,Atalanta Bergamasca Calcio,36,21.5955,0.5999
+Italy_Serie_A,2025-2026,Hellas Verona FC,36,21.6331,0.6009
+Italy_Serie_A,2025-2026,FC Internazionale Milano,36,13.0693,0.363
+Eredivisie,2020-2021,HFC ADO Den Haag,34,31.8945,0.9381
+Eredivisie,2020-2021,SC Heerenveen,34,27.1414,0.7983
+Eredivisie,2020-2021,FC Emmen,34,25.3001,0.7441
+Eredivisie,2020-2021,AFC Ajax,34,14.1085,0.415
+Eredivisie,2020-2021,Feyenoord Rotterdam,36,18.2822,0.5078
+Eredivisie,2020-2021,FC Utrecht,36,17.908,0.4974
+Eredivisie,2020-2021,FC Groningen,35,20.2215,0.5778
+Eredivisie,2020-2021,Willem II,34,25.8709,0.7609
+Eredivisie,2020-2021,Heracles Almelo,34,21.3604,0.6282
+Eredivisie,2020-2021,Alkmaar Zaanstreek,34,17.4126,0.5121
+Eredivisie,2020-2021,PSV Eindhoven,34,14.3082,0.4208
+Eredivisie,2020-2021,Sparta Rotterdam,35,24.4143,0.6976
+Eredivisie,2020-2021,FC Twente,34,21.8065,0.6414
+Eredivisie,2020-2021,RKC Waalwijk,34,27.8609,0.8194
+Eredivisie,2020-2021,VVV Venlo,34,30.3501,0.8926
+Eredivisie,2020-2021,PEC Zwolle,34,24.2126,0.7121
+Eredivisie,2020-2021,SBV Vitesse,34,17.5266,0.5155
+Eredivisie,2020-2021,Fortuna Sittard,34,27.778,0.817
+Eredivisie,2021-2022,AFC Ajax,34,14.5355,0.4275
+Eredivisie,2021-2022,PSV Eindhoven,34,16.9175,0.4976
+Eredivisie,2021-2022,SC Cambuur Leeuwarden,34,29.7904,0.8762
+Eredivisie,2021-2022,Feyenoord Rotterdam,34,15.6689,0.4608
+Eredivisie,2021-2022,FC Groningen,34,22.4297,0.6597
+Eredivisie,2021-2022,Alkmaar Zaanstreek,38,17.257,0.4541
+Eredivisie,2021-2022,FC Twente,34,19.7092,0.5797
+Eredivisie,2021-2022,Nijmegen Eendracht Combinatie,34,26.078,0.767
+Eredivisie,2021-2022,FC Utrecht,36,22.4615,0.6239
+Eredivisie,2021-2022,SC Heerenveen,36,27.2972,0.7583
+Eredivisie,2021-2022,SBV Vitesse,38,23.6348,0.622
+Eredivisie,2021-2022,Go Ahead Eagles,34,28.9829,0.8524
+Eredivisie,2021-2022,RKC Waalwijk,34,25.8841,0.7613
+Eredivisie,2021-2022,Sparta Rotterdam,34,23.2985,0.6852
+Eredivisie,2021-2022,Willem II,34,25.2828,0.7436
+Eredivisie,2021-2022,Fortuna Sittard,34,33.0516,0.9721
+Eredivisie,2021-2022,PEC Zwolle,34,22.312,0.6562
+Eredivisie,2021-2022,Heracles Almelo,34,22.9177,0.6741
+Eredivisie,2022-2023,Alkmaar Zaanstreek,34,19.7688,0.5814
+Eredivisie,2022-2023,Feyenoord Rotterdam,34,14.3986,0.4235
+Eredivisie,2022-2023,AFC Ajax,34,13.4145,0.3945
+Eredivisie,2022-2023,SBV Excelsior,34,32.0132,0.9416
+Eredivisie,2022-2023,SC Cambuur Leeuwarden,34,28.2427,0.8307
+Eredivisie,2022-2023,SBV Vitesse,34,19.5236,0.5742
+Eredivisie,2022-2023,FC Emmen,34,26.4194,0.777
+Eredivisie,2022-2023,FC Volendam,34,30.0116,0.8827
+Eredivisie,2022-2023,Fortuna Sittard,34,30.9254,0.9096
+Eredivisie,2022-2023,RKC Waalwijk,34,27.7333,0.8157
+Eredivisie,2022-2023,Go Ahead Eagles,34,25.4279,0.7479
+Eredivisie,2022-2023,SC Heerenveen,36,27.1664,0.7546
+Eredivisie,2022-2023,PSV Eindhoven,34,16.7092,0.4914
+Eredivisie,2022-2023,FC Utrecht,36,25.9372,0.7205
+Eredivisie,2022-2023,Sparta Rotterdam,38,30.3038,0.7975
+Eredivisie,2022-2023,Nijmegen Eendracht Combinatie,34,23.9173,0.7034
+Eredivisie,2022-2023,FC Twente,38,18.9608,0.499
+Eredivisie,2022-2023,FC Groningen,34,29.4027,0.8648
+Eredivisie,2023-2024,Alkmaar Zaanstreek,34,20.0804,0.5906
+Eredivisie,2023-2024,Nijmegen Eendracht Combinatie,35,29.9928,0.8569
+Eredivisie,2023-2024,Almere City FC,34,25.2358,0.7422
+Eredivisie,2023-2024,Go Ahead Eagles,36,31.0554,0.8626
+Eredivisie,2023-2024,Fortuna Sittard,34,19.9233,0.586
+Eredivisie,2023-2024,FC Utrecht,36,23.0141,0.6393
+Eredivisie,2023-2024,SC Heerenveen,34,23.1128,0.6798
+Eredivisie,2023-2024,Heracles Almelo,34,30.4432,0.8954
+Eredivisie,2023-2024,PSV Eindhoven,34,12.2851,0.3613
+Eredivisie,2023-2024,AFC Ajax,34,22.2277,0.6538
+Eredivisie,2023-2024,Sparta Rotterdam,35,29.0735,0.8307
+Eredivisie,2023-2024,RKC Waalwijk,34,28.5912,0.8409
+Eredivisie,2023-2024,FC Twente,34,16.3746,0.4816
+Eredivisie,2023-2024,Feyenoord Rotterdam,34,10.8343,0.3187
+Eredivisie,2023-2024,SBV Vitesse,34,27.8222,0.8183
+Eredivisie,2023-2024,PEC Zwolle,34,26.5454,0.7807
+Eredivisie,2023-2024,FC Volendam,34,34.4207,1.0124
+Eredivisie,2023-2024,SBV Excelsior,34,29.5124,0.868
+Eredivisie,2024-2025,Alkmaar Zaanstreek,36,19.306,0.5363
+Eredivisie,2024-2025,Go Ahead Eagles,34,25.4731,0.7492
+Eredivisie,2024-2025,AFC Ajax,34,15.0206,0.4418
+Eredivisie,2024-2025,Willem II,34,30.1749,0.8875
+Eredivisie,2024-2025,Almere City FC,34,29.9247,0.8801
+Eredivisie,2024-2025,Nijmegen Eendracht Combinatie,35,21.3516,0.61
+Eredivisie,2024-2025,Fortuna Sittard,34,23.0478,0.6779
+Eredivisie,2024-2025,FC Groningen,34,22.9415,0.6747
+Eredivisie,2024-2025,SC Heerenveen,35,24.2857,0.6939
+Eredivisie,2024-2025,Sparta Rotterdam,34,22.5984,0.6647
+Eredivisie,2024-2025,NAC Breda,34,26.5439,0.7807
+Eredivisie,2024-2025,RKC Waalwijk,34,30.7952,0.9057
+Eredivisie,2024-2025,PSV Eindhoven,34,14.1274,0.4155
+Eredivisie,2024-2025,PEC Zwolle,34,23.9266,0.7037
+Eredivisie,2024-2025,FC Twente,36,22.898,0.6361
+Eredivisie,2024-2025,Heracles Almelo,34,25.457,0.7487
+Eredivisie,2024-2025,FC Utrecht,34,21.2898,0.6262
+Eredivisie,2024-2025,Feyenoord Rotterdam,34,15.9046,0.4678
+Eredivisie,2025-2026,Alkmaar Zaanstreek,33,21.423,0.6492
+Eredivisie,2025-2026,FC Utrecht,33,17.824,0.5401
+Eredivisie,2025-2026,Feyenoord Rotterdam,33,16.1679,0.4899
+Eredivisie,2025-2026,PSV Eindhoven,33,15.0914,0.4573
+Eredivisie,2025-2026,Fortuna Sittard,33,26.2068,0.7941
+Eredivisie,2025-2026,FC Groningen,33,18.4374,0.5587
+Eredivisie,2025-2026,Go Ahead Eagles,33,28.1763,0.8538
+Eredivisie,2025-2026,SBV Excelsior,33,25.9803,0.7873
+Eredivisie,2025-2026,SC Heerenveen,33,22.0366,0.6678
+Eredivisie,2025-2026,NAC Breda,33,24.7559,0.7502
+Eredivisie,2025-2026,Sparta Rotterdam,33,26.3047,0.7971
+Eredivisie,2025-2026,SC Telstar,33,27.4547,0.832
+Eredivisie,2025-2026,FC Twente,33,20.1485,0.6106
+Eredivisie,2025-2026,AFC Ajax,33,18.4704,0.5597
+Eredivisie,2025-2026,FC Volendam,33,28.462,0.8625
+Eredivisie,2025-2026,Heracles Almelo,33,24.1366,0.7314
+Eredivisie,2025-2026,PEC Zwolle,33,27.3111,0.8276
+Eredivisie,2025-2026,Nijmegen Eendracht Combinatie,33,19.5677,0.593

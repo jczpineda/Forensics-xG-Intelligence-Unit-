@@ -14,6 +14,7 @@ values and more.
   - **xA** (expected assists) — the xG of the chances a player creates — plus **npxG + xA** for total goal involvement.
   - **PSxG** (post-shot xG) for goalkeepers, with **PSxG+/- (goals prevented)** and **Saveable Goals** (soft goals conceded) to expose error-proneness.
   - **xT** (expected threat) per team — values the *build-up* rather than the shot: every successful open-play pass and carry scored by how much it raised the chance the possession ends in a goal. Solved by value iteration on a 12×8 grid, one surface across all leagues and seasons so teams compare directly.
+  - **xT conceded** — the same surface read from the other end: the threat opponents build *against* you, mirrored into your own orientation so the map shows where you get played through. Unlike xT prevented (which partly measures how often you defend), lower is unambiguously better, and generated minus conceded gives a **net xT** that reads like goal difference.
 - **Pivot Index** — does a squad actually have a *true* deep-lying playmaker? Scores every midfielder on three axes (**Control**, **Progression**, **Anchor**) and combines them *conjunctively*, so a high-volume recycler and an advanced creator can't be mistaken for a regista. Rendered as a midfield-archetype quadrant on Team Profile.
 - **Player grading** — role-aware grades (S+ → F) across position-specific categories, shown as pizza charts and attribute breakdowns. PSxG+/- is the core of the goalkeeper grade; xG/xA drive attacking grades, with regression-to-mean shrinkage so small samples don't swing results.
 - **Automatic role classification** — each player is typed into a role (e.g. Shot-Stopper, Ball-Playing GK, Prolific Striker, Advanced Playmaker) and graded against the right peers and KPIs.
@@ -30,7 +31,7 @@ values and more.
 | 🧤 **GK Analysis** | Goalkeeper shot-stopping rankings powered by the PSxG model |
 | 🌟 **Potential Grading** | Trajectory-driven potential, blending form momentum with the age curve |
 | ⚔️ **Player Comparison** | Find Similar Players · head-to-head Compare · Cross-Season Compare |
-| 🏟️ **Team Profile / Comparison** | Team-level aggregates, matchups, **xT generated** — league ranking plus a pitch map of where each team creates threat — and the **Pivot Index** quadrant: whether the squad actually contains a deep-lying playmaker |
+| 🏟️ **Team Profile / Comparison** | Team-level aggregates, matchups, **xT generated** — league ranking plus a pitch map of where each team creates threat — the **Pivot Index** quadrant, and **xT conceded** — where opponents build threat against them |
 | 🔍 **Data Explorer** | Browse, filter, search and download the raw data |
 
 ## Leagues & seasons
@@ -76,6 +77,7 @@ refresh:
 | `build_eredivisie.py` | `Eredivisie/jugadores_*.csv` | assemble the Dutch league CSVs from per-team Opta files |
 | `build_team_xt.py` | `team_xt*.csv`, `xt_surface.csv` | fit the xT surface + team xT *generated* by zone |
 | `build_spatial.py` | `player_xt.csv`, `team_xt_prevented*.csv` | player xT (gen & prevented) + team xT *prevented*, reusing the surface |
+| `build_xt_conceded.py` | `team_xt_conceded.csv`, `team_xt_conceded_grid.csv` | team xT *conceded* — threat opponents create against you, by zone |
 | `build_maps.py` | `team_/player_heatmap.csv`, `team_/player_sonar.csv` | current-season touch heat maps + pass sonars |
 | `build_pivot_index.py` | `player_pivot.csv` | **Pivot Index** — deep-lying playmaker scoring per midfielder-season (CSV-only, seconds to run) |
 
